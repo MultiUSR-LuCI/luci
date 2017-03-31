@@ -17,7 +17,7 @@ function index()
             local usw = require "luci.users"
             local user = dsp.get_user()
 	    if user == "root" then return true end
-	    local name = "Network"
+	    local name = "network"
 
 	    local menu = {}
 	    menu = usw.hide_menus(user,name) or {}
@@ -49,6 +49,7 @@ function index()
 			end)
 
 		if has_switch then
+			if user("Switch") == true then
 			page  = node("admin", "network", "vlan")
 			page.target = cbi("admin_network/vlan")
 			page.title  = _("Switch")
@@ -58,7 +59,7 @@ function index()
 			page.leaf = true
 		end
 		end
-
+		end
 
 		if user("Wifi") == true then
 		local has_wifi = false
