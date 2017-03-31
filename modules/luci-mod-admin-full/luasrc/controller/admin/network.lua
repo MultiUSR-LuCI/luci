@@ -7,14 +7,36 @@ module("luci.controller.admin.network", package.seeall)
 function index()
 	local uci = require("luci.model.uci").cursor()
 	local page
+	local fs = require "nixio.fs"
 
+          function user(val)
+	    if not fs.access("/usr/lib/lua/luci/users.lua") then return true end
+	    local menu = {}
+            local dsp = require "luci.dispatcher"
+            local usw = require "luci.users"
+            local user = dsp.get_user()
+	    if user == "root" then return true end
+	    local name = "network"
+
+	    local menu = {}
+	    menu = usw.hide_menus(user,name) or {}
+	    if menu and #menu < 1 then
+             return false
+            end
+  	    for i,v in pairs(menu) do
+   	      if v == val then return true end
+  	    end
+  	    return false
+	    end
+	if user("Network_menus") == true then
 	page = node("admin", "network")
 	page.target = firstchild()
 	page.title  = _("Network")
 	page.order  = 50
 	page.index  = true
-
+	end
 --	if page.inreq then
+	if user("Switch") == true then
 		local has_switch = false
 
 		uci:foreach("network", "switch",
@@ -24,6 +46,7 @@ function index()
 			end)
 
 		if has_switch then
+		if user("Switch") == true then
 			page  = node("admin", "network", "vlan")
 			page.target = cbi("admin_network/vlan")
 			page.title  = _("Switch")
@@ -31,6 +54,8 @@ function index()
 
 			page = entry({"admin", "network", "switch_status"}, call("switch_status"), nil)
 			page.leaf = true
+		end
+		end
 		end
 
 
@@ -43,6 +68,7 @@ function index()
 			end)
 
 		if has_wifi then
+		if user("Wifi") == true then
 			page = entry({"admin", "network", "wireless_join"}, call("wifi_join"), nil)
 			page.leaf = true
 
@@ -80,8 +106,8 @@ function index()
 				end
 			end
 		end
-
-
+		end
+		if user("Interfaces") == true then
 		page = entry({"admin", "network", "iface_add"}, cbi("admin_network/iface_add"), nil)
 		page.leaf = true
 
@@ -111,9 +137,10 @@ function index()
 					end
 				end)
 		end
-
+		end
 
 		if nixio.fs.access("/etc/config/dhcp") then
+		if user("Dhcp") == true then
 			page = node("admin", "network", "dhcp")
 			page.target = cbi("admin_network/dhcp")
 			page.title  = _("DHCP and DNS")
@@ -127,12 +154,14 @@ function index()
 			page.title  = _("Hostnames")
 			page.order  = 40
 		end
-
+		end
+		if user("Routes") == true then
 		page  = node("admin", "network", "routes")
 		page.target = cbi("admin_network/routes")
 		page.title  = _("Static Routes")
 		page.order  = 50
-
+		end
+		if user("Diagnostics") == true then
 		page = node("admin", "network", "diagnostics")
 		page.target = template("admin_network/diagnostics")
 		page.title  = _("Diagnostics")
@@ -152,6 +181,7 @@ function index()
 
 		page = entry({"admin", "network", "diag_traceroute6"}, call("diag_traceroute6"), nil)
 		page.leaf = true
+		end
 --	end
 end
 
