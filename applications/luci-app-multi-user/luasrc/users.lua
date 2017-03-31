@@ -214,7 +214,7 @@ end
 function load_file(name, buf)
   local i = 1
   local file = io.open(name, "r")
-
+  if not file then return buf end
   for line in file:lines() do
     buf[i] = line
     i = i + 1
