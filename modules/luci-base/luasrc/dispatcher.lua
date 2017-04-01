@@ -649,7 +649,7 @@ function chk_access(con,sec,pos)
 end
 end
 
-function entry(path, target, title, order)
+--[[function entry(path, target, title, order)
 	local c = node(unpack(path))
 
 	c.target = target
@@ -657,6 +657,24 @@ function entry(path, target, title, order)
 	c.order  = order
 	c.module = getfenv(2)._NAME
 
+	return c
+end]]--
+
+function entry(path, target, title, order)
+	local c = {}
+        if path[2] and title then
+         --logger("PART 1 "..title)
+	 parse_to_file(path[2],title)
+         access = chk_access(path[2],title)
+        end
+
+	if not access then return c end
+ 
+	local c = node(unpack(path))
+	c.target = target
+	c.title  = title
+	c.order  = order
+	c.module = getfenv(2)._NAME
 	return c
 end
 
