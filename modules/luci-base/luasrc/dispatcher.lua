@@ -649,33 +649,35 @@ function chk_access(con,sec,pos)
 end
 end
 
---[[function entry(path, target, title, order)
-	local c = node(unpack(path))
-
-	c.target = target
-	c.title  = title
-	c.order  = order
-	c.module = getfenv(2)._NAME
-
-	return c
-end]]--
-
-function entry(path, target, title, order)
+if fs.stat("/usr/lib/lua/luci/users.lua") then 
+ function entry(path, target, title, order)
 	local c = {}
-        if path[2] and title then
-         --logger("PART 1 "..title)
+	local user = get_user()
+        if user ~= "root" and path[2] and title then
 	 parse_to_file(path[2],title)
          access = chk_access(path[2],title)
+	 if not access then return c end
         end
-
-	if not access then return c end
- 
 	local c = node(unpack(path))
 	c.target = target
 	c.title  = title
 	c.order  = order
 	c.module = getfenv(2)._NAME
 	return c
+ end
+
+else
+
+ function entry(path, target, title, order)
+	local c = node(unpack(path))
+	local user = get_user()
+	c.target = target
+	c.title  = title
+	c.order  = order
+	c.module = getfenv(2)._NAME
+
+	return c
+ end
 end
 
 -- enabling the node.
