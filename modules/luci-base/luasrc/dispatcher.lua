@@ -21,10 +21,6 @@ local index = nil
 -- Fastindex
 local fi
 
-function logger(msg)
- sys.exec("logger " .. msg)
-end
-
 function build_url(...)
 	local path = {...}
 	local url = { http.getenv("SCRIPT_NAME") or "" }
@@ -574,7 +570,8 @@ function assign(path, clone, title, order)
 	return obj
 end
 
-function parse_to_file(menu,item)
+if fs.stat("/usr/lib/lua/luci/users.lua") then 
+ function parse_to_file(menu,item)
   if not fs.stat("/tmp/menus") then
     fs.mkdir("/tmp/menus")
   end
@@ -600,15 +597,10 @@ function parse_to_file(menu,item)
   end
  end
  return
-end
+ end
 
---[[
-function chk_access(user,menu,pos)
-  if user ~= "root" and menu == "System" and pos < 30 then return true end
- return false
-end]]--
 
-function chk_access(con,sec,pos)
+ function chk_access(con,sec,pos)
   sec = sec:gsub("%s+", "_")
   if user == "root" or user == "nobody" then return true end
   if con == "users" then return true end
@@ -623,21 +615,25 @@ function chk_access(con,sec,pos)
   menu = usw.hide_menus(user,con) or {}
   if menu and #menu < 1 then return false end
   for i,v in pairs(menu) do
+    logger(v)
     if v == sec then return true end
   end
   --if util.contains(menu, sec) then return true end
  return false
+ end
 end
 
-function entry(path, target, title, order)
+if fs.stat("/usr/lib/lua/luci/users.lua") then 
+ function entry(path, target, title, order)
 	local c = {}
-        if path[2] and title then
-         --logger("PART 1 "..title)
+	local user = get_user()
+        if user ~= "root" and path[2] and title then
 	 parse_to_file(path[2],title)
          access = chk_access(path[2],title)
+	 if not access then return c end
         end
 
-	if not access then return c end
+	
  
 	local c = node(unpack(path))
 	c.target = target
@@ -645,19 +641,21 @@ function entry(path, target, title, order)
 	c.order  = order
 	c.module = getfenv(2)._NAME
 	return c
-end
---[[
-function entry(path, target, title, order)
-	local c = node(unpack(path))
+ end
 
+else
+
+ function entry(path, target, title, order)
+	local c = node(unpack(path))
+	local user = get_user()
 	c.target = target
 	c.title  = title
 	c.order  = order
 	c.module = getfenv(2)._NAME
 
 	return c
+ end
 end
-]]--
 -- enabling the node.
 
 function get(...)
