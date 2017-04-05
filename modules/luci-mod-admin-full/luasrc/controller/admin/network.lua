@@ -49,7 +49,6 @@ function index()
 			end)
 
 		if has_switch then
-			if user("Switch") == true then
 			page  = node("admin", "network", "vlan")
 			page.target = cbi("admin_network/vlan")
 			page.title  = _("Switch")
@@ -57,7 +56,6 @@ function index()
 
 			page = entry({"admin", "network", "switch_status"}, call("switch_status"), nil)
 			page.leaf = true
-		end
 		end
 		end
 
