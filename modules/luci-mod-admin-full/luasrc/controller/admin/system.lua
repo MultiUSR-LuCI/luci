@@ -10,7 +10,7 @@ function index()
 	entry({"admin", "system"}, alias("admin", "system", "system"), _("System"), 30).index = true
 	entry({"admin", "system", "system"}, cbi("admin_system/system"), _("System"), 1)
 	entry({"admin", "system", "clock_status"}, post_on({ set = true }, "action_clock_status"))
-	
+
 	entry({"admin", "system", "admin"}, cbi("admin_system/admin"), _("Administration"), 2)
 
 	if fs.access("/bin/opkg") then
@@ -26,10 +26,11 @@ function index()
 		entry({"admin", "system", "fstab", "mount"}, cbi("admin_system/fstab/mount"), nil).leaf = true
 		entry({"admin", "system", "fstab", "swap"},  cbi("admin_system/fstab/swap"),  nil).leaf = true
 	end
+
 	if fs.access("/sys/class/leds") then
 		entry({"admin", "system", "leds"}, cbi("admin_system/leds"), _("<abbr title=\"Light Emitting Diode\">LED</abbr> Configuration"), 60)
 	end
-	
+
 	entry({"admin", "system", "flashops"}, call("action_flashops"), _("Backup / Flash Firmware"), 70)
 	entry({"admin", "system", "flashops", "reset"}, post("action_reset"))
 	entry({"admin", "system", "flashops", "backup"}, post("action_backup"))
