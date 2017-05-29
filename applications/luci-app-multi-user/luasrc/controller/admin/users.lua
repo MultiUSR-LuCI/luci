@@ -18,7 +18,7 @@ function index()
 	  page = node("admin", "users")
 	  page.target = firstchild()
 	  page.title  = _("Users")
-	  page.order  = 50
+	  page.order  = 60
 	  page.index  = true
 		
 		page = entry({"admin", "users", "add_user"}, cbi("admin_users/add_user"), nil)
@@ -65,13 +65,19 @@ end
 
 local function cdate(user)
   local udate = nixio.fs.stat("/home/"..user)
-  local first = os.date("%c", udate.ctime)
+  local first
+  if udate then
+    first = os.date("%c", udate.ctime)
+  end
   return first
 end
 
 local function adate(user)
-  local udate = nixio.fs.stat("/home/"..user)
-  last = os.date("%c", udate.atime) or nil
+  local udate = nixio.fs.stat("/home/"..user.."/activity")
+  local last
+  if udate then 
+    last = os.date("%c", udate.mtime)
+  end
   return last
 end
 
@@ -89,10 +95,11 @@ end
 
 function user_status(users)
   local rv   = { }
-  local user 
+  local user
+ if users then 
   for user in users:gmatch("[%w%.%-_]+") do
-    local first = cdate(user)
-    local last = adate(user)
+    local first = adate(user)
+    local last = cdate(user)
     local shell = get_shell(user)
     local group = get_group(user)
     if user then
@@ -114,6 +121,7 @@ function user_status(users)
 		  }
     end
   end
+ end
   if #rv > 0 then
     luci.http.prepare_content("application/json")
     luci.http.write_json(rv)
