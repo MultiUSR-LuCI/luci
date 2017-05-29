@@ -598,86 +598,15 @@ function assign(path, clone, title, order)
 	return obj
 end
 
-if fs.stat("/usr/lib/lua/luci/users.lua") then 
-function parse_to_file(menu,item)
-  if not fs.stat("/tmp/menus") then
-    fs.mkdir("/tmp/menus")
-  end
- if menu ~= "uci" and menu ~= "logout" and menu ~= "users" and menu ~= "network" then
-  local fname = "/tmp/menus/"..menu
-  if not fs.stat(fname) then
-    file = io.open(fname, "w+")
-    item = item:gsub("%s+", "_")
-    file:write(item.."\n")
-    file:close()
-  else
-    file = io.open(fname, "r")
-    for line in file:lines() do
-      if line == item then
-        file:close()
-        return
-      end
-    end
-    file = io.open(fname, "a")
-    item = item:gsub("%s+", "_")
-    file:write(item.."\n")
-    file:close()
-  end
- end
- return
-end
-
-function chk_access(con,sec,pos)
-  sec = sec:gsub("%s+", "_")
-  if user == "root" or user == "nobody" then return true end
-  if con == "users" then return true end
-  if con == "network" or con == "uci" or con == "logout" then return true end
-  if con == "status" and sec == "Overview" or sec == "Status" then return true end
-  if con == "services" and sec == "Services" then return true end
-  if pos == 30 and sec == "System" then sec = sec.."_menus" end
-  if not fs.access("/usr/lib/lua/luci/users.lua") then return true end
-  local menu = {}
-  local usw = require "luci.users"
-  local user = get_user()
-  menu = usw.hide_menus(user,con) or {}
-  if menu and #menu < 1 then return false end
-  for i,v in pairs(menu) do
-    if v == sec then return true end
-  end
-  --if util.contains(menu, sec) then return true end
- return false
-end
-end
-
-if fs.stat("/usr/lib/lua/luci/users.lua") then 
- function entry(path, target, title, order)
-	local c = {}
-	local user = get_user()
-        if user ~= "root" and path[2] and title then
-	 parse_to_file(path[2],title)
-         access = chk_access(path[2],title)
-	 if not access then return c end
-        end
+function entry(path, target, title, order)
 	local c = node(unpack(path))
-	c.target = target
-	c.title  = title
-	c.order  = order
-	c.module = getfenv(2)._NAME
-	return c
- end
 
-else
-
- function entry(path, target, title, order)
-	local c = node(unpack(path))
-	local user = get_user()
 	c.target = target
 	c.title  = title
 	c.order  = order
 	c.module = getfenv(2)._NAME
 
 	return c
- end
 end
 
 -- enabling the node.
@@ -694,13 +623,33 @@ function node(...)
 	return c
 end
 
+--## Function to chk if the user has acces to the menu entry ##--
+local function chk(name)
+  	local mu = require ("luci.users")
+	local user = get_user()
+	local menus = mu.get_menus(user) 
+	if user == "root" or user == "nobody" then return false end
+	if name == "admin.status" or name == "admin.status.overview" 
+	or name == "admin.logout" or name == "admin" 
+	or name:match("admin.uci") or name:match("servicectl") 
+	or name:match("admin.users") then return false end
+	if not util.contains(menus, name) then return true end
+
+	return false
+end
+
 function _create_node(path)
+        local name = table.concat(path, ".")
+	local c
+
+	--## Here is where the magic happens :) ##--
 	if #path == 0 then
 		return context.tree
+	elseif name and chk(name) then
+		c = {nodes={}, auto=true}
+	else
+		c = context.treecache[name]
 	end
-
-	local name = table.concat(path, ".")
-	local c = context.treecache[name]
 
 	if not c then
 		local last = table.remove(path)
@@ -713,8 +662,11 @@ function _create_node(path)
 		  c.inreq = true
 		end
 		parent.nodes[last] = c
+                
 		context.treecache[name] = c
-	end
+		
+        end
+
 	return c
 end
 
@@ -748,8 +700,93 @@ function firstchild()
    return { type = "firstchild", target = _firstchild }
 end
 
+--## Function to compare the current index from alias to the user config ##--
+--## If the current index is not present then we assign the first available sub menu as index ##--
+local function get_alias(user,menu,index,path)
+	local conf = "users"
+  	local uci  = uci.cursor()
+	local tbuf = {}
+  	local buf = {}
+	
+	--## update the users activity file ##--
+	if user ~= "root" and user ~= "nobody" then 
+		local fname = "/home/"..user.."/activity"
+        	local file = io.open(fname, "w+")
+        	file:write(os.date() .."\n")
+		file:close()
+	end
+
+  	local ent = uci:get(conf, user, menu.."_subs")
+
+	if ent then
+		for word in string.gmatch(ent, '([^,]+)') do
+			tbuf[#tbuf+1] = word
+		end
+	end
+
+	for i,v in pairs(tbuf) do
+		if path == v then
+			for word in string.gmatch(path, '([^.]+)') do
+				buf[#buf+1] = word
+			end
+			return buf 
+		end
+	end
+	
+	for i,v in pairs(tbuf) do	
+		path = path:gsub(index, "")
+		local snip = v:sub(0,path:len(),-1)
+		if path == snip then
+			path = path..v:sub(path:len()+1,-1)
+			break
+		end
+	end
+
+	for word in string.gmatch(path, '([^.]+)') do
+		buf[#buf+1] = word
+	end
+
+	return buf		
+end
+
+--## Function to prep the table from alias so we can process it and compare it with the users config ##-- 
+local function prep_alias(user, ...)
+	local buf = {...}
+	local req = {}
+	if #buf < 2 then return {...} end
+ 
+	local index = buf[#buf]
+	local menu = buf[2]
+	local path
+	if index == "overview" then return {...} end
+	for i,v in pairs(buf) do
+		if not path then
+			path = v
+		else
+			path = path .. "." .. v
+		end
+	end
+
+	local req = get_alias(user,menu,index,path)
+
+	if #req == 0 then 
+		return {...}
+	else
+		return req
+	end
+end
+
 function alias(...)
-	local req = {...}
+	local user = get_user()
+	local req
+	--## if user is not root, the index may have changed so ##--
+	--## we need to get the first sub-menu and make it the index ##--
+	if user ~= "root" and user ~= "nobody" then
+		req = prep_alias(user, ...)
+	else
+		req = {...}
+	end
+
 	return function(...)
 		for _, r in ipairs({...}) do
 			req[#req+1] = r
@@ -990,43 +1027,161 @@ end
 
 -- get the current user anyway we can 
 -- if no user if found return "nobody"
-if fs.stat("/usr/lib/lua/luci/users.lua") then 
-    function get_user()
-    local fs = require "nixio.fs"
-    local http = require "luci.http"
-    local util = require "luci.util"
-    local sess = luci.http.getcookie("sysauth")
-    local sdat = (util.ubus("session", "get", { ubus_rpc_session = sess }) or { }).values
-    if sdat then 
-	  user = sdat.user
-	  return(user)
-    elseif http.formvalue("username") then
-	  user = http.formvalue("username")
-	  return(user)
-    elseif http.getenv("HTTP_AUTH_USER") then
-	  user = http.getenv("HTTP_AUTH_USER")
-	  return(user)
-    else
-	  user = "nobody"
-	  return(user)
-    end
-  end
+function get_user()
+	local fs = require "nixio.fs"
+	local http = require "luci.http"
+	local util = require "luci.util"
+	local sess = luci.http.getcookie("sysauth")
+	local sdat = (util.ubus("session", "get", { ubus_rpc_session = sess }) or { }).values
+	local user
 
+	if sdat then 
+		user = sdat.user
+		return(user)
+	elseif http.formvalue("username") then
+		user = http.formvalue("username")
+		return(user)
+	elseif http.getenv("HTTP_AUTH_USER") then
+		user = http.getenv("HTTP_AUTH_USER")
+		return(user)
+	else
+		user = "nobody"
+		return(user)
+	end
+end
 
-  function load_menus()
-   local menus = {}
-   if fs.stat("/tmp/menus") then
-    for i,v in fs.dir("/tmp/menus") do
-      menus[i]={}
-      local file = assert(io.open("/tmp/menus/"..i, "r"))
-      for line in file:lines() do
-        if line ~= nil then
-          menus[i][#menus[i]+1] = line
-        end
-      end
-      file:close()
-    end
-   end
-   return menus
-  end
+--## Function to create a file contianing all available menus and sub-menus ##--
+local function create_menu(menu,title,path,order)
+	local tbuf = {}
+	local dir = "/tmp/menu/"
+	local fname = dir .. menu
+
+   	-- check if file and dir exists, if not create them
+   	if not fs.access(dir) then 
+     		fs.mkdir(dir)
+   	end
+   	if not fs.access(fname) then
+     		file = assert(io.open(fname, "w+"))
+       		file:write(title.."-"..path.."-"..tostring(order).."\n")
+     		file:close()
+   	else
+   		-- check if file contains val, if not add the val to the file
+      		file = assert(io.open(fname, "r"))
+     		for line in file:lines() do
+       			tbuf[#tbuf+1] = line
+     		end
+     		file:close()
+     		if not util.contains(tbuf, title.."-"..path.."-"..tostring(order)) then
+       			file = assert(io.open(fname, "a+"))
+       			file:write(title.."-"..path.."-"..tostring(order).."\n")
+       			file:close()
+     		end
+    	end
+
+  	return
+end
+
+--## Function to format menus and sub-menus for writing to file ##--
+local function parse_path(path,title,order)
+	local tbuf = {}
+	local dbuf = {}
+
+	for word in string.gmatch(path, '([^.]+)') do
+		if (#tbuf < 3) then
+			tbuf[#tbuf+1] = word
+		end
+	end
+
+	for i,v in pairs(tbuf) do
+		if tbuf[2] ~= "filebrowser" and tbuf[2] ~= "logout" and tbuf[2] ~= "servicectl" and tbuf[2] ~= "uci" then
+            		if tbuf[2] and tbuf[3] then
+				dbuf[tbuf[2]] = tbuf[3]
+            		end
+		end
+	end
+
+	for i,v in pairs(dbuf) do
+          create_menu(i,title,path,order)
+	end
+	return
+end
+
+--## Function to create the menu tree from the context.treecahce ##--
+function create_menu_tree()
+	--util.dumptable(context.treecache,2)
+	local cnt = 0
+	for k,v in pairs(context.treecache) do
+		if not k:match("admin.uci.%a+") and v.title then
+			parse_path(k, v.title, v.order)
+			cnt = cnt + 1
+		end
+		if cnt >= 50 then return end
+	end
+	
+	return
+end
+
+--## Function to sort menus best we can ... the order hierarchy needs work ##--
+local function sort_menus(menu)
+	local menus = {}
+	local tmenus = {}
+	local title,path,order
+	local menu_keys = {}
+
+	for i,v in pairs(menu) do
+		menus[i]= {}
+		menu_keys = {}
+		for key,val in pairs(v) do
+			local tbuf={}
+			for word in val:gmatch("[^-]+") do
+				tbuf[#tbuf+1] = word
+			end
+
+			local tbuf2 = {}
+			for word in tbuf[2]:gmatch("[^.]+") do
+				tbuf2[#tbuf2+1] = word
+			end
+			if #tbuf2 > 3 then tbuf[3] = tonumber(tbuf[3]) + 11 end
+			title = tbuf[1]
+			path = tbuf[2]
+			order = tonumber(tbuf[3]) or 99
+			--print(title,order,path)
+			if util.contains(menu_keys, order) then order = order +1 end
+			menu_keys[#menu_keys+1]= order
+			tmenus[order] = {title.."-"..path}
+			
+		end
+		table.sort(menu_keys, function(a,b) return a<b end)
+		for _,v in pairs(menu_keys) do
+				--print(v)
+				for a,b in pairs(tmenus[v]) do
+					menus[i][#menus[i]+1]=b
+				end
+			end
+		
+	end
+	return menus
+end
+
+--## Function users by add_users and edit_users to display available menus ##--
+function load_menu()
+	create_menu_tree()
+	local menu = {}
+	if fs.stat("/tmp/menu") then
+		for i,v in fs.dir("/tmp/menu") do
+			menu[i]={}
+			local file = assert(io.open("/tmp/menu/"..i, "r"))
+			
+			for line in file:lines() do
+				if line ~= nil then
+					if not util.contains(menu[i],line) then
+						menu[i][#menu[i]+1] = line
+					end
+				end
+			end
+			file:close()
+		end
+	end
+	local menus = sort_menus(menu)
+	return menus
 end
