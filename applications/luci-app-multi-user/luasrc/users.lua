@@ -9,8 +9,8 @@ require("uci")
 
 --## Add/Remove User files and dependants ##--
 local fs = require "nixio.fs"
+local sys = require "luci.sys"
 local util = require ("luci.util")
-local uci = uci.cursor()
 local passwd = "/etc/passwd"
 local passwd2 = "/etc/passwd-"
 local shadow = "/etc/shadow"
@@ -19,10 +19,6 @@ local groupy = "/etc/group"
 local config = "/etc/config/users"
 local homedir
 
---## global menu buffers ##--
-local status = {}
-local system = {}
-local network = {}
 
 --####################################### luci ui functions ###############################################--
 
@@ -30,7 +26,7 @@ local network = {}
 function login()
 local valid_users = {}
 local i, pwent
-for i, pwent in ipairs(nixio.getpw()) do
+for i, pwent in ipairs(nixio.getpw() or {} ) do
   if pwent.uid == 0 or (pwent.uid >= 1000 and pwent.uid < 65534) then
     valid_users[i] = pwent.name
   end
@@ -40,6 +36,8 @@ end
 
 --## fuction to add a new user ##--
 function new_user()
+  local uci = uci.cursor()
+  uci:commit("users")
   local user = uci:get("users", "new", "name")
   uci:rename("users.new="..user)
   uci:commit("users")
@@ -55,6 +53,7 @@ end
 
 --## function to edit an existing user ##--
 function edit_user(user)
+  local uci = uci.cursor()
   local shell = uci:get("users", user, "shell")
   if shell == "Enabled" then shell = "ash" else shell = "false" end
   local group = uci:get("users", user, "group")
@@ -84,6 +83,7 @@ end
 
 --## Function to get the ui usernames ##--
 function ui_users()
+  local uci = uci.cursor()
   local ui_usernames = {}
   uci:foreach("users", "user", function(s) if s.name ~= nil then ui_usernames[#ui_usernames+1]=s.name end end )
   return ui_usernames
@@ -106,44 +106,24 @@ function del_user(username)
   end
 end
 
---## SPLIT STR into INDIVIDUAL TABLE ELEMENTS ##--
-local function load_buf(str)
-  local buf = {}
-  for word in string.gmatch(str, "[^%s]+") do
-   buf[#buf+1] = word
-  end
- return buf
-end
-
---## GET SUB MENUS ##--
-local function get_menu_subs(user,menu)
-  local menu_name = menu .."_subs"
-  local str = uci:get("users", user, menu_name)
- return str
-end
-
---## GET STATUS OF A MENU ##--
-function get_menu_status(user,menu)
-  local menu_name = menu .."_menus"
-  local str = uci:get("users", user, menu_name)
- return str
-end
-
 --## GET A TABLE LOADED WITH the USERS AVAILABLE MENU ITEMS ##--
-function hide_menus(user,menu)
-  local buf = {}
-  local str
-  local menu_name = string.format("%s%s", menu,"_menus")
-  if user == "nobody" then return buf end
-  local str_menus = get_menu_status(user,menu)
-  local str_subs = get_menu_subs(user,menu)
-  if str_menus and str_subs then 
-    str = string.format("%s %s", str_menus, str_subs)
-  elseif str_menus then 
-    str = string.format("%s", str_menus)
-  end
-  if str ~= nil then buf = load_buf(str) end
- return buf
+function get_menus(name)
+	local uci = uci.cursor()
+	local buf = {}
+	uci:foreach("users", "user", function(s)
+		for k, v in pairs(s) do
+			if s.name == name then
+				if k:match("%a+".."_menus") or k:match("%a+".."_subs") then
+					for word in string.gmatch(v, '([^,]+)') do
+						buf[#buf+1]=word
+					end
+				end	
+					
+			end
+		end
+	end)
+
+	return buf
 end
 
 --## function to set default password for new users ##--
@@ -154,6 +134,7 @@ end
 --####################################### Ulitlity functions ###############################################--
 
 function get_color(user)
+  local uci = uci.cursor()
   local tpl = require "luci.template.parser"
   local grp = uci:get("users", user, "group")
   if user and grp == "users" then
