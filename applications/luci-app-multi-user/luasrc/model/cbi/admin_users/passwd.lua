@@ -5,7 +5,7 @@
 local fs = require "nixio.fs"
 
 m = Map("users", translate("Router Password"),
-	translate("Changes the administrator password for accessing the device"))
+	translate("Changes your password for accessing the device"))
 
 s = m:section(TypedSection, "_dummy", "")
 s.addremove = false
@@ -21,7 +21,7 @@ function s.cfgsections()
 	return { "_pass" }
 end
 
-function m.on_commit(map)
+function m.parse(map)
 	local v1 = pw1:formvalue("_pass")
 	local v2 = pw2:formvalue("_pass")
 
@@ -36,6 +36,8 @@ function m.on_commit(map)
 			m.message = translate("Given password confirmation did not match, password not changed!")
 		end
 	end
+
+	Map.parse(map)
 end
 
 return m
