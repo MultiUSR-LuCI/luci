@@ -1089,7 +1089,7 @@ local function sort_menus(menu)
 			for word in tbuf[2]:gmatch("[^.]+") do
 				tbuf2[#tbuf2+1] = word
 			end
-			if #tbuf2 > 3 then tbuf[3] = tonumber(tbuf[3]) + 11 end
+			if #tbuf2 > 3 then tbuf[3] = #tbuf2 + 11 end
 			title = tbuf[1]
 			path = tbuf[2]
 			order = tonumber(tbuf[3]) or 99
