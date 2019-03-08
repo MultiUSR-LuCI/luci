@@ -780,6 +780,100 @@ function firstnode()
 	return { type = "firstnode", target = _firstnode }
 end
 
+--## Function to compare the current index from alias to the user config ##--
+--## If the current index is not present then we assign the first available sub menu as index ##--
+local function get_alias(user,menu,index,path)
+	local conf = "users"
+  	local uci  = uci.cursor()
+	local tbuf = {}
+  	local buf = {}
+	
+	--## update the users activity file ##--
+	if user and user ~= "root" and user ~= "nobody" then 
+		fs.writefile("/home/"..user.."/activity", os.date().."\n")
+	end
+
+  	local ent = uci:get(conf, user, menu.."_subs")
+
+	if ent then
+		for word in string.gmatch(ent, '([^,]+)') do
+			tbuf[#tbuf+1] = word
+		end
+	end
+
+	for i,v in pairs(tbuf) do
+		if path == v then
+			for word in string.gmatch(path, '([^.]+)') do
+				buf[#buf+1] = word
+			end
+			return buf 
+		end
+	end
+	
+	for i,v in pairs(tbuf) do	
+		path = path:gsub(index, "")
+		local snip = v:sub(0,path:len(),-1)
+		if path == snip then
+			path = path..v:sub(path:len()+1,-1)
+			break
+		end
+	end
+
+	for word in string.gmatch(path, '([^.]+)') do
+		buf[#buf+1] = word
+	end
+
+	return buf		
+end
+
+--## Function to prep the table from alias so we can process it and compare it with the users config ##-- 
+local function prep_alias(user, ...)
+	local buf = {...}
+	local req = {}
+	if #buf < 2 then return {...} end
+ 
+	local index = buf[#buf]
+	local menu = buf[2]
+	local path
+	if index == "overview" then return {...} end
+	for i,v in pairs(buf) do
+		if not path then
+			path = v
+		else
+			path = path .. "." .. v
+		end
+	end
+
+	local req = get_alias(user,menu,index,path)
+
+	if #req == 0 then 
+		return {...}
+	else
+		return req
+	end
+end
+
+function alias(...)
+	local user = get_user()
+	local req
+	--## if user is not root, the index may have changed so ##--
+	--## we need to get the first sub-menu and make it the index ##--
+	if user ~= "root" and user ~= "nobody" then
+		req = prep_alias(user, ...)
+	else
+		req = {...}
+	end
+
+	return function(...)
+		for _, r in ipairs({...}) do
+			req[#req+1] = r
+		end
+
+		dispatch(req)
+	end
+end
+
+--[[
 function alias(...)
 	local req = {...}
 	return function(...)
@@ -790,7 +884,7 @@ function alias(...)
 		dispatch(req)
 	end
 end
-
+]]--
 function rewrite(n, ...)
 	local req = {...}
 	return function(...)
@@ -1028,4 +1122,165 @@ translate = i18n.translate
 -- is used by build/i18n-scan.pl to find translatable entries.
 function _(text)
 	return text
+end
+
+-- get the current user anyway we can 
+-- if no user if found return "nobody"
+function get_user()
+	local fs = require "nixio.fs"
+	local http = require "luci.http"
+	local util = require "luci.util"
+	local sess = luci.http.getcookie("sysauth")
+	local sdat = (util.ubus("session", "get", { ubus_rpc_session = sess }) or { }).values
+	local user
+
+	if sdat then 
+		user = sdat.username
+		return(user)
+	elseif http.formvalue("username") then
+		user = http.formvalue("username")
+		return(user)
+	elseif http.getenv("HTTP_AUTH_USER") then
+		user = http.getenv("HTTP_AUTH_USER")
+		return(user)
+	else
+		user = "nobody"
+		return(user)
+	end
+end
+
+--## Function to create a file contianing all available menus and sub-menus ##--
+local function create_menu(menu,title,path,order)
+	local tbuf = {}
+	local dir = "/tmp/menu/"
+	local fname = dir .. menu
+
+   	-- check if file and dir exists, if not create them
+   	if not fs.access(dir) then 
+     		fs.mkdir(dir)
+   	end
+   	if not fs.access(fname) then
+     		file = assert(io.open(fname, "w+"))
+       		file:write(title.."-"..path.."-"..tostring(order).."\n")
+     		file:close()
+   	else
+   		-- check if file contains val, if not add the val to the file
+      		file = assert(io.open(fname, "r"))
+     		for line in file:lines() do
+       			tbuf[#tbuf+1] = line
+     		end
+     		file:close()
+     		if not util.contains(tbuf, title.."-"..path.."-"..tostring(order)) then
+       			file = assert(io.open(fname, "a+"))
+       			file:write(title.."-"..path.."-"..tostring(order).."\n")
+       			file:close()
+     		end
+    	end
+
+  	return
+end
+
+--## Function to format menus and sub-menus for writing to file ##--
+local function parse_path(path,title,order)
+	local tbuf = {}
+	local dbuf = {}
+
+	for word in string.gmatch(path, '([^.]+)') do
+		if (#tbuf < 3) then
+			tbuf[#tbuf+1] = word
+		end
+	end
+
+	for i,v in pairs(tbuf) do
+		if tbuf[2] ~= "filebrowser" and tbuf[2] ~= "logout" and tbuf[2] ~= "servicectl" and tbuf[2] ~= "uci" then
+            		if tbuf[2] and tbuf[3] then
+				dbuf[tbuf[2]] = tbuf[3]
+            		end
+		end
+	end
+
+	for i,v in pairs(dbuf) do
+          create_menu(i,title,path,order)
+	end
+	return
+end
+
+--## Function to create the menu tree from the context.treecahce ##--
+function create_menu_tree()
+	--util.dumptable(context.treecache,2)
+	local cnt = 0
+	for k,v in pairs(context.treecache) do
+		if not k:match("admin.uci.%a+") and v.title then
+			parse_path(k, v.title, v.order)
+			cnt = cnt + 1
+		end
+		if cnt >= 50 then return end
+	end
+	
+	return
+end
+
+--## Function to sort menus best we can ... the order hierarchy needs work ##--
+local function sort_menus(menu)
+	local menus = {}
+	local tmenus = {}
+	local title,path,order
+	local menu_keys = {}
+
+	for i,v in pairs(menu) do
+		menus[i]= {}
+		menu_keys = {}
+		for key,val in pairs(v) do
+			local tbuf={}
+			for word in val:gmatch("[^-]+") do
+				tbuf[#tbuf+1] = word
+			end
+
+			local tbuf2 = {}
+			for word in tbuf[2]:gmatch("[^.]+") do
+				tbuf2[#tbuf2+1] = word
+			end
+			if #tbuf2 > 3 then tbuf[3] = #tbuf2 + 11 end
+			title = tbuf[1]
+			path = tbuf[2]
+			order = tonumber(tbuf[3]) or 99
+			--print(title,order,path)
+			if util.contains(menu_keys, order) then order = order +1 end
+			menu_keys[#menu_keys+1]= order
+			tmenus[order] = {title.."-"..path}
+			
+		end
+		table.sort(menu_keys, function(a,b) return a<b end)
+		for _,v in pairs(menu_keys) do
+				--print(v)
+				for a,b in pairs(tmenus[v]) do
+					menus[i][#menus[i]+1]=b
+				end
+			end
+		
+	end
+	return menus
+end
+
+--## Function used by add_users and edit_users to display available menus ##--
+function load_menu()
+	create_menu_tree()
+	local menu = {}
+	if fs.stat("/tmp/menu") then
+		for i,v in fs.dir("/tmp/menu") do
+			menu[i]={}
+			local file = assert(io.open("/tmp/menu/"..i, "r"))
+			
+			for line in file:lines() do
+				if line ~= nil then
+					if not util.contains(menu[i],line) then
+						menu[i][#menu[i]+1] = line
+					end
+				end
+			end
+			file:close()
+		end
+	end
+	local menus = sort_menus(menu)
+	return menus
 end
