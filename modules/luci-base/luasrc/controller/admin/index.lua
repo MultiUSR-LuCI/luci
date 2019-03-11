@@ -17,6 +17,19 @@ function index()
 	end
 
 	local uci = require("luci.model.uci").cursor()
+	
+	--## Multi User ##--
+	local fs = require "nixio.fs"
+	local valid_users = {}
+
+	--## load system users into valid_users tbl ##--
+  	if fs.stat("/usr/lib/lua/luci/users.lua") then
+    		local usw = require "luci.users"
+    		valid_users = usw.login()
+  	else
+	--## no multi user so root is only valid user ##--
+    		valid_users = { "root" }
+	end
 
 	local root = node()
 	if not root.target then
@@ -28,7 +41,7 @@ function index()
 
 	page.title   = _("Administration")
 	page.order   = 10
-	page.sysauth = "root"
+	page.sysauth = valid_users
 	page.sysauth_authenticator = "htmlauth"
 	page.ucidata = true
 	page.index = true
