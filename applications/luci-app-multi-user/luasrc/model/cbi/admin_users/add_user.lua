@@ -10,7 +10,7 @@ m = Map("users", translate("Add New User"),translate("User Configuration"))
 local fs = require "nixio.fs"
 local groups = {"user", "admin", "other"}
 local menu = dsp.load_menu()
-local mu = require "luci.users"
+local mu = require ("luci.users")
 require "uci"
 local uci = uci.cursor()
 local s,o
