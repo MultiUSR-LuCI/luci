@@ -36,25 +36,26 @@ end
 end
 
 --## fuction to add a new user ##--
-function new_user()
+function new_user(name)
   local uci = uci.cursor()
-  uci:commit("users")
-  local user = uci:get("users", "new", "name")
-  uci:rename("users.new="..user)
-  uci:commit("users")
-  uci:add("users", "user")
-  uci:rename("users.@user[-1]=new")
-  uci:commit("users")
-  uci:add("rpcd", "login")
-  uci:set("rpcd.@login[-1].username="..user)
-  uci:set("rpcd.@login[-1].password=$p$"..user)
-  uci:set("rpcd.@login[-1].read=*")
-  uci:set("rpcd.@login[-1].write=*")
-  uci:commit("rpcd")
-  local shell = uci:get("users", user, "shell")
-  if shell == "Enabled" then shell = "ash" else shell = "false" end
-  local group = uci:get("users", user, "group")
-  add_user(user,"users",shell)
+  local user = name or uci:get("users", "new", "name")
+  if user then
+    uci:rename("users.new=".. user)
+    uci:add("users", "user")
+    uci:rename("users.@user[-1]=new")
+    uci:commit("users")
+    uci:add("rpcd", "login")
+    uci:set("rpcd.@login[-1].username="..user)
+    uci:set("rpcd.@login[-1].password=$p$"..user)
+    uci:set("rpcd.@login[-1].read=*")
+    uci:set("rpcd.@login[-1].write=*")
+    uci:commit("rpcd")
+
+    local shell = uci:get("users", user, "shell")
+    if shell == "Enabled" then shell = "ash" else shell = "false" end
+    local group = uci:get("users", user, "group")
+    add_user(user,"users",shell)
+  end
  return
 end
 
