@@ -685,6 +685,58 @@ function lookup(...)
 	end
 end
 
+--## Function to chk if the user has acces to the menu entry ##--
+local function chk(name)
+  	local mu = require ("luci.users")
+	local user = get_user()
+	local menus = mu.get_menus(user) 
+	if user == "root" or user == "nobody" then return false end
+	if name == "admin.status" or name == "admin.status.overview" 
+	or name == "admin.logout" or name == "admin" 
+	or name:match("admin.uci") or name:match("servicectl") 
+	or name:match("admin.users") then return false end
+	if not util.contains(menus, name) then return true end
+
+	return false
+end
+
+function _create_node(path)
+        local name = table.concat(path, ".")
+	local c
+
+	--## Here is where the magic happens :) ##--
+	if #path == 0 then
+		return context.tree
+	elseif name and chk(name) then
+		c = {nodes={}, auto=true}
+	else
+		c = context.treecache[name]
+	end
+
+	if not c then
+		local last = table.remove(path)
+		local parent = _create_node(path)
+
+		c = {nodes={}, auto=true, inreq=true}
+
+		local _, n
+		for _, n in ipairs(path) do
+			if context.path[_] ~= n then
+				c.inreq = false
+				break
+			end
+		end
+
+		c.inreq = c.inreq and (context.path[#path + 1] == last)
+
+		parent.nodes[last] = c
+		context.treecache[name] = c
+	end
+
+	return c
+end
+
+--[[ ### ORIGINAL FUNCTION  ###
 function _create_node(path)
 	if #path == 0 then
 		return context.tree
@@ -764,7 +816,8 @@ function _find_node(recurse, types)
 	end
 end
 
-function _firstchild()
+function _
+()
 	return _find_node(false, nil)
 end
 
