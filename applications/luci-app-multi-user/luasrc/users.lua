@@ -1,1327 +1,383 @@
--- Copyright 2008 Steven Barth <steven@midlink.org>
--- Copyright 2008-2015 Jo-Philipp Wich <jow@openwrt.org>
--- Licensed to the public under the Apache License 2.0.
+-- luci/openwrt multi user implementation V2 --
+-- users.lua by Hostle 01/13/2016 --
 
+module("luci.users", package.seeall)
+
+--## General dependents ##--
+require "luci.sys"
+require("uci")
+
+--## Add/Remove User files and dependants ##--
 local fs = require "nixio.fs"
 local sys = require "luci.sys"
-local util = require "luci.util"
-local http = require "luci.http"
-local nixio = require "nixio", require "nixio.util"
-
-module("luci.dispatcher", package.seeall)
-context = util.threadlocal()
-uci = require "luci.model.uci"
-i18n = require "luci.i18n"
-_M.fs = fs
-
--- Index table
-local index = nil
-
--- Fastindex
-local fi
+local util = require ("luci.util")
+local passwd = "/etc/passwd"
+local passwd2 = "/etc/passwd-"
+local shadow = "/etc/shadow"
+local shadow2 = "/etc/shadow-"
+local groupy = "/etc/group"
+local config = "/etc/config/users"
+local homedir
 
 
-function build_url(...)
-	local path = {...}
-	local url = { http.getenv("SCRIPT_NAME") or "" }
+--####################################### luci ui functions ###############################################--
 
-	local p
-	for _, p in ipairs(path) do
-		if p:match("^[a-zA-Z0-9_%-%.%%/,;]+$") then
-			url[#url+1] = "/"
-			url[#url+1] = p
-		end
-	end
-
-	if #path == 0 then
-		url[#url+1] = "/"
-	end
-
-	return table.concat(url, "")
+--## login function to provide valid usernames, used by ndex and serviceclt ##--
+function login()
+local valid_users = {}
+local i, pwent
+for i, pwent in ipairs(nixio.getpw() or {} ) do
+  if pwent.uid == 0 or (pwent.uid >= 1000 and pwent.uid < 65534) then
+    fs.writefile('/tmp/luci.log', pwent.name)
+    valid_users[i] = pwent.name
+  end
+end
+  return valid_users
 end
 
-function _ordered_children(node)
-	local name, child, children = nil, nil, {}
+--## fuction to add a new user ##--
+function new_user()
+  local uci = uci.cursor()
+  local user = uci:get("users", "new", "name")
+  if user then
+    uci:rename("users.new=".. user)
+    uci:add("users", "user")
+    uci:rename("users.@user[-1]=new")
+    uci:commit("users")
+    uci:add("rpcd", "login")
+    uci:set("rpcd.@login[-1].username="..user)
+    uci:set("rpcd.@login[-1].password=$p$"..user)
+    uci:set("rpcd.@login[-1].read=*")
+    uci:set("rpcd.@login[-1].write=*")
+    uci:commit("rpcd")
 
-	for name, child in pairs(node.nodes) do
-		children[#children+1] = {
-			name  = name,
-			node  = child,
-			order = child.order or 100
-		}
-	end
+    local shell = uci:get("users", user, "shell")
+    if shell == "Enabled" then shell = "ash" else shell = "false" end
+    local group = uci:get("users", user, "group")
+    add_user(user,"users",shell)
+  end
+ return
+end
 
-	table.sort(children, function(a, b)
-		if a.order == b.order then
-			return a.name < b.name
-		else
-			return a.order < b.order
+--## function to edit an existing user ##--
+function edit_user(user)
+  local uci = uci.cursor()
+  local shell = uci:get("users", user, "shell")
+  if shell == "Enabled" then shell = "ash" else shell = "false" end
+  local group = uci:get("users", user, "group")
+  set_shell(user,shell)
+  --set_group(user,group)
+ return
+end
+
+--## set the users shell ##--
+function set_shell(user,shell)
+  local buf = {}
+  load_file(passwd,buf)
+  local upat = "home/%w+:"
+
+  for i,v in pairs(buf) do
+    for name in v:gmatch(upat) do
+      name = name:sub(name:find("/")+1,name:find(":")-1)
+      if name == user then
+        name = v:gsub(v:sub(v:find("bin")+4,-1), shell)
+        buf[i]= name
+      end
+    end
+  end
+  write_file(passwd, buf)
+ return
+end
+
+--## Function to delete user rpcd entry #--
+function remove_config_entries(username)
+	local i=0
+	local uci = uci:cursor()
+
+	uci:foreach("rpcd","login", function(s)
+		for key, value in pairs(s) do
+	 		if key == "username" then
+				if value == username then
+					uci:delete("rpcd.@login["..i.."]")
+					uci:commit("rpcd")
+                			return
+	 			end
+	 			i = i + 1
+			end
+     		end
+ 	end)
+  return
+end
+
+
+--## Function to get the ui usernames ##--
+function ui_users()
+  local uci = uci.cursor()
+  local ui_usernames = {}
+  uci:foreach("users", "user", function(s) if s.name ~= nil then ui_usernames[#ui_usernames+1]=s.name end end )
+  return ui_usernames
+end
+
+--## function to find deleted ui users and remove them from the system ##--
+function del_user(username)
+  if username ~= nil and username ~= "root" then
+      delete_user(username)
+      remove_config_entries(username)
+  else
+    local ui_usernames = ui_users()
+    local valid_users = login()
+    for i,v in pairs(valid_users) do
+      if not util.contains(ui_usernames,v) then
+        if v ~= "root" then
+         delete_user(v)
+         remove_config_entries(v)
+        end
+      end
+    end
+  end
+end
+
+--## GET A TABLE LOADED WITH the USERS AVAILABLE MENU ITEMS ##--
+function get_menus(name)
+	local uci = uci.cursor()
+	local buf = {}
+	uci:foreach("users", "user", function(s)
+		for k, v in pairs(s) do
+			if s.name == name then
+				if k:match("%a+".."_menus") or k:match("%a+".."_subs") then
+					for word in string.gmatch(v, '([^,]+)') do
+						buf[#buf+1]=word
+					end
+				end	
+					
+			end
 		end
 	end)
 
-	return children
+	return buf
 end
 
-function node_visible(node)
-   if node then
-	  return not (
-		 (not node.title or #node.title == 0) or
-		 (not node.target or node.hidden == true) or
-		 (type(node.target) == "table" and node.target.type == "firstchild" and
-		  (type(node.nodes) ~= "table" or not next(node.nodes)))
-	  )
-   end
-   return false
+--## function to set default password for new users ##--
+function setpasswd(username,password)
+  luci.sys.user.setpasswd(username, "openwrt")
 end
 
-function node_childs(node)
-	local rv = { }
-	if node then
-		local _, child
-		for _, child in ipairs(_ordered_children(node)) do
-			if node_visible(child.node) then
-				rv[#rv+1] = child.name
-			end
-		end
-	end
-	return rv
+--####################################### Ulitlity functions ###############################################--
+
+function get_color(user)
+  local uci = uci.cursor()
+  local tpl = require "luci.template.parser"
+  local grp = uci:get("users", user, "group")
+  if user and grp == "users" then
+    return "#90f090"
+  elseif user and grp == "admin" then
+    return "#f09090"
+  elseif user then
+    math.randomseed(tpl.hash(user))
+
+    local r   = math.random(128)
+    local g   = math.random(128)
+    local min = 0
+    local max = 128
+
+    if ( r + g ) < 128 then
+      min = 128 - r - g
+    else
+      max = 255 - r - g
+    end
+
+    local b = min + math.floor( math.random() * ( max - min ) )
+    return "#%02x%02x%02x" % { 0xFF - r, 0xFF - g, 0xFF - b }
+  else
+    return "#eeeeee"
+  end
 end
 
-
-function error404(message)
-	http.status(404, "Not Found")
-	message = message or "Not Found"
-
-	local function render()
-		local template = require "luci.template"
-		template.render("error404")
-	end
-
-	if not util.copcall(render) then
-		http.prepare_content("text/plain")
-		http.write(message)
-	end
-
-	return false
+function clean_config()
+  local file = assert(io.open(users_file, "w+"))
+  file:close()
 end
 
-function error500(message)
-	util.perror(message)
-	if not context.template_header_sent then
-		http.status(500, "Internal Server Error")
-		http.prepare_content("text/plain")
-		http.write(message)
-	else
-		require("luci.template")
-		if not util.copcall(luci.template.render, "error500", {message=message}) then
-			http.prepare_content("text/plain")
-			http.write(message)
-		end
-	end
-	return false
+--## function to check if user exists ##--
+function user_exist(username)
+ if nixio.getsp(username) ~= nil then return true else return false end
 end
 
-function httpdispatch(request, prefix)
-	http.context.request = request
-
-	local r = {}
-	context.request = r
-
-	local pathinfo = http.urldecode(request:getenv("PATH_INFO") or "", true)
-
-	if prefix then
-		for _, node in ipairs(prefix) do
-			r[#r+1] = node
-		end
-	end
-
-	local node
-	for node in pathinfo:gmatch("[^/%z]+") do
-		r[#r+1] = node
-	end
-
-	local stat, err = util.coxpcall(function()
-		dispatch(context.request)
-	end, error500)
-
-	http.close()
-
-	--context._disable_memtrace()
+--## function to check if path is a file ##--
+local function isFile(path)
+  if nixio.fs.stat(path, "type") == "reg" then return true else return false end
 end
 
-local function require_post_security(target)
-	if type(target) == "table" then
-		if type(target.post) == "table" then
-			local param_name, required_val, request_val
-
-			for param_name, required_val in pairs(target.post) do
-				request_val = http.formvalue(param_name)
-
-				if (type(required_val) == "string" and
-				    request_val ~= required_val) or
-				   (required_val == true and request_val == nil)
-				then
-					return false
-				end
-			end
-
-			return true
-		end
-
-		return (target.post == true)
-	end
-
-	return false
+--## function to check if path is a directory ##--
+local function isDir(path)
+  if nixio.fs.access(path) then return true else return false end
 end
 
-function test_post_security()
-	if http.getenv("REQUEST_METHOD") ~= "POST" then
-		http.status(405, "Method Not Allowed")
-		http.header("Allow", "POST")
-		return false
-	end
-
-	if http.formvalue("token") ~= context.authtoken then
-		http.status(403, "Forbidden")
-		luci.template.render("csrftoken")
-		return false
-	end
-
-	return true
+--## function to get next available uid ##--
+local function get_uid()
+local uid = 1000
+  while nixio.getpw(uid) do
+    uid = uid + 1
+  end
+ return uid
 end
 
-local function session_retrieve(sid, allowed_users)
-	local sdat = util.ubus("session", "get", { ubus_rpc_session = sid })
-
-	if type(sdat) == "table" and
-	   type(sdat.values) == "table" and
-	   type(sdat.values.token) == "string" and
-	   (not allowed_users or
-	    util.contains(allowed_users, sdat.values.username))
-	then
-		uci:set_session_id(sid)
-		return sid, sdat.values
-	end
-
-	return nil, nil
+--## function load file into buffer ##--
+function load_file(name, buf)
+  local i = 1
+  local file = io.open(name, "r")
+  if not file then return buf end
+  for line in file:lines() do
+    buf[i] = line
+    i = i + 1
+  end
+  file:close()
+ return(buf)
 end
 
-local function session_setup(user, pass, allowed_users)
-	if util.contains(allowed_users, user) then
-		local login = util.ubus("session", "login", {
-			username = user,
-			password = pass,
-			timeout  = tonumber(luci.config.sauth.sessiontime)
-		})
-
-		local rp = context.requestpath
-			and table.concat(context.requestpath, "/") or ""
-
-		if type(login) == "table" and
-		   type(login.ubus_rpc_session) == "string"
-		then
-			util.ubus("session", "set", {
-				ubus_rpc_session = login.ubus_rpc_session,
-				values = { token = sys.uniqueid(16) }
-			})
-
-			io.stderr:write("luci: accepted login on /%s for %s from %s\n"
-				%{ rp, user, http.getenv("REMOTE_ADDR") or "?" })
-
-			return session_retrieve(login.ubus_rpc_session)
-		end
-
-		io.stderr:write("luci: failed login on /%s for %s from %s\n"
-			%{ rp, user, http.getenv("REMOTE_ADDR") or "?" })
-	end
-
-	return nil, nil
+--## function to add new item to buffer ##--
+function new_item(item, buf)
+ buf[#buf+1]=item
+ return buf
 end
 
-function dispatch(request)
-	--context._disable_memtrace = require "luci.debug".trap_memtrace("l")
-	local ctx = context
-	ctx.path = request
-
-	local conf = require "luci.config"
-	assert(conf.main,
-		"/etc/config/luci seems to be corrupt, unable to find section 'main'")
-
-	local i18n = require "luci.i18n"
-	local lang = conf.main.lang or "auto"
-	if lang == "auto" then
-		local aclang = http.getenv("HTTP_ACCEPT_LANGUAGE") or ""
-		for aclang in aclang:gmatch("[%w_-]+") do
-			local country, culture = aclang:match("^([a-z][a-z])[_-]([a-zA-Z][a-zA-Z])$")
-			if country and culture then
-				local cc = "%s_%s" %{ country, culture:lower() }
-				if conf.languages[cc] then
-					lang = cc
-					break
-				elseif conf.languages[country] then
-					lang = country
-					break
-				end
-			elseif conf.languages[aclang] then
-				lang = aclang
-				break
-			end
-		end
-	end
-	if lang == "auto" then
-		lang = i18n.default
-	end
-	i18n.setlanguage(lang)
-
-	local c = ctx.tree
-	local stat
-	if not c then
-		c = createtree()
-	end
-
-	local track = {}
-	local args = {}
-	ctx.args = args
-	ctx.requestargs = ctx.requestargs or args
-	local n
-	local preq = {}
-	local freq = {}
-
-	for i, s in ipairs(request) do
-		preq[#preq+1] = s
-		freq[#freq+1] = s
-		c = c.nodes[s]
-		n = i
-		if not c then
-			break
-		end
-
-		util.update(track, c)
-
-		if c.leaf then
-			break
-		end
-	end
-
-	if c and c.leaf then
-		for j=n+1, #request do
-			args[#args+1] = request[j]
-			freq[#freq+1] = request[j]
-		end
-	end
-
-	ctx.requestpath = ctx.requestpath or freq
-	ctx.path = preq
-
-	-- Init template engine
-	if (c and c.index) or not track.notemplate then
-		local tpl = require("luci.template")
-		local media = track.mediaurlbase or luci.config.main.mediaurlbase
-		if not pcall(tpl.Template, "themes/%s/header" % fs.basename(media)) then
-			media = nil
-			for name, theme in pairs(luci.config.themes) do
-				if name:sub(1,1) ~= "." and pcall(tpl.Template,
-				 "themes/%s/header" % fs.basename(theme)) then
-					media = theme
-				end
-			end
-			assert(media, "No valid theme found")
-		end
-
-		local function _ifattr(cond, key, val, noescape)
-			if cond then
-				local env = getfenv(3)
-				local scope = (type(env.self) == "table") and env.self
-				if type(val) == "table" then
-					if not next(val) then
-						return ''
-					else
-						val = util.serialize_json(val)
-					end
-				end
-
-				val = tostring(val or
-					(type(env[key]) ~= "function" and env[key]) or
-					(scope and type(scope[key]) ~= "function" and scope[key]) or "")
-
-				if noescape ~= true then
-					val = util.pcdata(val)
-				end
-
-				return string.format(' %s="%s"', tostring(key), val)
-			else
-				return ''
-			end
-		end
-
-		tpl.context.viewns = setmetatable({
-		   write       = http.write;
-		   include     = function(name) tpl.Template(name):render(getfenv(2)) end;
-		   translate   = i18n.translate;
-		   translatef  = i18n.translatef;
-		   export      = function(k, v) if tpl.context.viewns[k] == nil then tpl.context.viewns[k] = v end end;
-		   striptags   = util.striptags;
-		   pcdata      = util.pcdata;
-		   media       = media;
-		   theme       = fs.basename(media);
-		   resource    = luci.config.main.resourcebase;
-		   ifattr      = function(...) return _ifattr(...) end;
-		   attr        = function(...) return _ifattr(true, ...) end;
-		   url         = build_url;
-		}, {__index=function(tbl, key)
-			if key == "controller" then
-				return build_url()
-			elseif key == "REQUEST_URI" then
-				return build_url(unpack(ctx.requestpath))
-			elseif key == "FULL_REQUEST_URI" then
-				local url = { http.getenv("SCRIPT_NAME") or "", http.getenv("PATH_INFO") }
-				local query = http.getenv("QUERY_STRING")
-				if query and #query > 0 then
-					url[#url+1] = "?"
-					url[#url+1] = query
-				end
-				return table.concat(url, "")
-			elseif key == "token" then
-				return ctx.authtoken
-			else
-				return rawget(tbl, key) or _G[key]
-			end
-		end})
-	end
-
-	track.dependent = (track.dependent ~= false)
-	assert(not track.dependent or not track.auto,
-		"Access Violation\nThe page at '" .. table.concat(request, "/") .. "/' " ..
-		"has no parent node so the access to this location has been denied.\n" ..
-		"This is a software bug, please report this message at " ..
-		"https://github.com/openwrt/luci/issues"
-	)
-
-	if track.sysauth and not ctx.authsession then
-		local authen = track.sysauth_authenticator
-		local _, sid, sdat, default_user, allowed_users
-
-		if type(authen) == "string" and authen ~= "htmlauth" then
-			error500("Unsupported authenticator %q configured" % authen)
-			return
-		end
-
-		if type(track.sysauth) == "table" then
-			default_user, allowed_users = nil, track.sysauth
-		else
-			default_user, allowed_users = track.sysauth, { track.sysauth }
-		end
-
-		if type(authen) == "function" then
-			_, sid = authen(sys.user.checkpasswd, allowed_users)
-		else
-			sid = http.getcookie("sysauth")
-		end
-
-		sid, sdat = session_retrieve(sid, allowed_users)
-
-		if not (sid and sdat) and authen == "htmlauth" then
-			local user = http.getenv("HTTP_AUTH_USER")
-			local pass = http.getenv("HTTP_AUTH_PASS")
-
-			if user == nil and pass == nil then
-				user = http.formvalue("luci_username")
-				pass = http.formvalue("luci_password")
-			end
-
-			sid, sdat = session_setup(user, pass, allowed_users)
-
-			if not sid then
-				local tmpl = require "luci.template"
-
-				context.path = {}
-
-				http.status(403, "Forbidden")
-				http.header("X-LuCI-Login-Required", "yes")
-				tmpl.render(track.sysauth_template or "sysauth", {
-					duser = default_user,
-					fuser = user
-				})
-
-				return
-			end
-
-			http.header("Set-Cookie", 'sysauth=%s; path=%s; HttpOnly%s' %{
-				sid, build_url(), http.getenv("HTTPS") == "on" and "; secure" or ""
-			})
-			http.redirect(build_url(unpack(ctx.requestpath)))
-		end
-
-		if not sid or not sdat then
-			http.status(403, "Forbidden")
-			http.header("X-LuCI-Login-Required", "yes")
-			return
-		end
-
-		ctx.authsession = sid
-		ctx.authtoken = sdat.token
-		ctx.authuser = sdat.username
-	end
-
-	if track.cors and http.getenv("REQUEST_METHOD") == "OPTIONS" then
-		luci.http.status(200, "OK")
-		luci.http.header("Access-Control-Allow-Origin", http.getenv("HTTP_ORIGIN") or "*")
-		luci.http.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		return
-	end
-
-	if c and require_post_security(c.target) then
-		if not test_post_security(c) then
-			return
-		end
-	end
-
-	if track.setgroup then
-		sys.process.setgroup(track.setgroup)
-	end
-
-	if track.setuser then
-		sys.process.setuser(track.setuser)
-	end
-
-	local target = nil
-	if c then
-		if type(c.target) == "function" then
-			target = c.target
-		elseif type(c.target) == "table" then
-			target = c.target.target
-		end
-	end
-
-	if c and (c.index or type(target) == "function") then
-		ctx.dispatched = c
-		ctx.requested = ctx.requested or ctx.dispatched
-	end
-
-	if c and c.index then
-		local tpl = require "luci.template"
-
-		if util.copcall(tpl.render, "indexer", {}) then
-			return true
-		end
-	end
-
-	if type(target) == "function" then
-		util.copcall(function()
-			local oldenv = getfenv(target)
-			local module = require(c.module)
-			local env = setmetatable({}, {__index=
-
-			function(tbl, key)
-				return rawget(tbl, key) or module[key] or oldenv[key]
-			end})
-
-			setfenv(target, env)
-		end)
-
-		local ok, err
-		if type(c.target) == "table" then
-			ok, err = util.copcall(target, c.target, unpack(args))
-		else
-			ok, err = util.copcall(target, unpack(args))
-		end
-		if not ok then
-			error500("Failed to execute " .. (type(c.target) == "function" and "function" or c.target.type or "unknown") ..
-			         " dispatcher target for entry '/" .. table.concat(request, "/") .. "'.\n" ..
-			         "The called action terminated with an exception:\n" .. tostring(err or "(unknown)"))
-		end
-	else
-		local root = node()
-		if not root or not root.target then
-			error404("No root node was registered, this usually happens if no module was installed.\n" ..
-			         "Install luci-mod-admin-full and retry. " ..
-			         "If the module is already installed, try removing the /tmp/luci-indexcache file.")
-		else
-			error404("No page is registered at '/" .. table.concat(request, "/") .. "'.\n" ..
-			         "If this url belongs to an extension, make sure it is properly installed.\n" ..
-			         "If the extension was recently installed, try removing the /tmp/luci-indexcache file.")
-		end
-	end
+--## function to remove user from buffer ##--
+function rem_user(user, buf)
+  for i,v in pairs(buf) do
+    if v:find(user) then
+      table.remove(buf,i)
+    end
+  end
+ return(buf)
 end
 
-function createindex()
-	local controllers = { }
-	local base = "%s/controller/" % util.libpath()
-	local _, path
+--## function to write buffer back to file ##--
+function write_file(name, buf)
+  local file = io.open(name, "w+")
 
-	for path in (fs.glob("%s*.lua" % base) or function() end) do
-		controllers[#controllers+1] = path
-	end
-
-	for path in (fs.glob("%s*/*.lua" % base) or function() end) do
-		controllers[#controllers+1] = path
-	end
-
-	if indexcache then
-		local cachedate = fs.stat(indexcache, "mtime")
-		if cachedate then
-			local realdate = 0
-			for _, obj in ipairs(controllers) do
-				local omtime = fs.stat(obj, "mtime")
-				realdate = (omtime and omtime > realdate) and omtime or realdate
-			end
-
-			if cachedate > realdate and sys.process.info("uid") == 0 then
-				assert(
-					sys.process.info("uid") == fs.stat(indexcache, "uid")
-					and fs.stat(indexcache, "modestr") == "rw-------",
-					"Fatal: Indexcache is not sane!"
-				)
-
-				index = loadfile(indexcache)()
-				return index
-			end
-		end
-	end
-
-	index = {}
-
-	for _, path in ipairs(controllers) do
-		local modname = "luci.controller." .. path:sub(#base+1, #path-4):gsub("/", ".")
-		local mod = require(modname)
-		assert(mod ~= true,
-		       "Invalid controller file found\n" ..
-		       "The file '" .. path .. "' contains an invalid module line.\n" ..
-		       "Please verify whether the module name is set to '" .. modname ..
-		       "' - It must correspond to the file path!")
-
-		local idx = mod.index
-		assert(type(idx) == "function",
-		       "Invalid controller file found\n" ..
-		       "The file '" .. path .. "' contains no index() function.\n" ..
-		       "Please make sure that the controller contains a valid " ..
-		       "index function and verify the spelling!")
-
-		index[modname] = idx
-	end
-
-	if indexcache then
-		local f = nixio.open(indexcache, "w", 600)
-		f:writeall(util.get_bytecode(index))
-		f:close()
-	end
+  for i,v in pairs(buf) do
+    if(i < #buf) then
+      file:write(v.."\n")
+    else
+      file:write(v)
+    end
+  end
+  file:close()
 end
 
--- Build the index before if it does not exist yet.
-function createtree()
-	if not index then
-		createindex()
-	end
+--############################################### Add User Functions ######################################--
 
-	local ctx  = context
-	local tree = {nodes={}, inreq=true}
-
-	ctx.treecache = setmetatable({}, {__mode="v"})
-	ctx.tree = tree
-
-	local scope = setmetatable({}, {__index = luci.dispatcher})
-
-	for k, v in pairs(index) do
-		scope._NAME = k
-		setfenv(v, scope)
-		v()
-	end
-
-	return tree
+--## functio to prepare users home dir ##--
+function create_homedir(name)
+  local home = "/home/"
+  local homedir = home .. name
+ return homedir
 end
 
-function assign(path, clone, title, order)
-	local obj  = node(unpack(path))
-	obj.nodes  = nil
-	obj.module = nil
+--## function add user to passwds ##--
+function add_passwd(name,uid,shell,homedir)
+  local nuser = name..":x:"..uid..":"..uid..":"..name..":"..homedir..":".."/bin/"..shell
+  local nuser2 = name..":*:"..uid..":"..uid..":"..name..":"..homedir..":".."/bin/"..shell
+  local buf = {}
 
-	obj.title = title
-	obj.order = order
-
-	setmetatable(obj, {__index = _create_node(clone)})
-
-	return obj
+  if not user_exist(name) then
+    load_file(passwd,buf)
+    new_item(nuser,buf)
+    write_file(passwd,buf)
+    buf = { }
+    load_file(passwd2,buf)
+    new_item(nuser2,buf)
+    write_file(passwd2,buf)
+  else
+    return
+  end
 end
 
-function entry(path, target, title, order)
-	local c = node(unpack(path))
-
-	c.target = target
-	c.title  = title
-	c.order  = order
-	c.module = getfenv(2)._NAME
-
-	return c
+--## function add user to shadows ##--
+function add_shadow(name)
+  local shad = name..":*:11647:0:99999:7:::"
+  local buf = { }
+  
+  if name then
+    load_file(shadow,buf)
+    new_item(shad,buf)
+    write_file(shadow,buf)
+    buf = { }
+    load_file(shadow2,buf)
+    new_item(shad,buf)
+    write_file(shadow2,buf)
+  else
+    return 
+  end
 end
 
--- enabling the node.
-function get(...)
-	return _create_node({...})
+--## function to add user to group ##--
+function add_group(name,group,uid)
+  local grp = group..":x:"..uid..":"
+  local buf = { }
+  return
+  --if user_exist(name) then
+    --load_file(groupy,buf)
+    --new_item(grp,buf)
+    --write_file(groupy,buf)
+  --end
 end
 
-function node(...)
-	local c = _create_node({...})
-
-	c.module = getfenv(2)._NAME
-	c.auto = nil
-
-	return c
+--## make the users home directory and set permissions to (755) ##--
+function make_home_dirs(homedir,name,group)
+  local home = "/home"
+  if not isDir(home) then
+    fs.mkdir(home, 755)
+  end
+  if not isDir(homedir) then
+    fs.mkdir(homedir, 755)
+  end
+  local cmd = "find "..homedir.." -print | xargs chown "..name..":"..group
+  os.execute(cmd)
 end
 
-function lookup(...)
-	local i, path = nil, {}
-	for i = 1, select('#', ...) do
-		local name, arg = nil, tostring(select(i, ...))
-		for name in arg:gmatch("[^/]+") do
-			path[#path+1] = name
-		end
-	end
+--## function to add user to the system  ##--
+function add_user(name, group, shell)
+  local name = name
+  local uid = get_uid()
 
-	for i = #path, 1, -1 do
-		local node = context.treecache[table.concat(path, ".", 1, i)]
-		if node and (i == #path or node.leaf) then
-			return node, build_url(unpack(path))
-		end
-	end
+  if user_exist(name) then 
+    return
+  elseif name and group and uid and shell then
+    homedir = create_homedir(name,group)
+    add_passwd(name,uid,shell,homedir)
+    add_shadow(name)
+    add_group(name,group,uid)
+    make_home_dirs(homedir,name,group)
+    setpasswd(name)
+  end
+ return
 end
 
--- Function to chk if the user has acces to the menu entry 
-local function chk(name)
-  	local mu = require ("luci.users")
-	local user = get_user()
-	local menus = mu.get_menus(user) 
-	if user == "root" or user == "nobody" then return false end
-	if name == "admin.status" or name == "admin.status.overview" 
-	or name == "admin.logout" or name == "admin" 
-	or name:match("admin.uci") or name:match("servicectl") 
-	or name:match("admin.users") then return false end
-	if not util.contains(menus, name) then return true end
+--################################### Remove User functions ###########################################--
 
-	return false
+--## function remove user from the system ##--
+function delete_user(user)
+  local buf = { ["passwd"] = {}, ["shadow"] = {}, ["group"] = {} }
+
+  --## load files into indexed buffers ##--
+  load_file(passwd, buf.passwd)
+  load_file(shadow, buf.shadow)
+  load_file(groupy, buf.group)
+
+  --## remove user from buffers ##--
+  rem_user(user, buf.passwd)
+  rem_user(user, buf.shadow)
+  rem_user(user, buf.group)
+
+  --## write edited buffers back to the files ##--
+  write_file(passwd, buf.passwd)
+  write_file(passwd2, buf.passwd)
+  write_file(shadow, buf.shadow)
+  write_file(shadow2, buf.shadow)
+  write_file(groupy, buf.group)
+  luci.sys.call("rm -r -f /home/"..user.."/")
+  fs.rmdir("/home/"..user)
 end
 
-function _create_node(path)
-        local name = table.concat(path, ".")
-	local c
-
-	-- Here is where the magic happens 
-	if #path == 0 then
-		return context.tree
-	elseif name and chk(name) then
-		c = {nodes={}, auto=true}
-	else
-		c = context.treecache[name]
-	end
-
-	if not c then
-		local last = table.remove(path)
-		local parent = _create_node(path)
-
-		c = {nodes={}, auto=true, inreq=true}
-
-		local _, n
-		for _, n in ipairs(path) do
-			if context.path[_] ~= n then
-				c.inreq = false
-				break
-			end
-		end
-
-		c.inreq = c.inreq and (context.path[#path + 1] == last)
-
-		parent.nodes[last] = c
-		context.treecache[name] = c
-	end
-
-	return c
-end
-
---[[ ### ORIGINAL FUNCTION  ###
-function _create_node(path)
-	if #path == 0 then
-		return context.tree
-	end
-
-	local name = table.concat(path, ".")
-	local c = context.treecache[name]
-
-	if not c then
-		local last = table.remove(path)
-		local parent = _create_node(path)
-
-		c = {nodes={}, auto=true, inreq=true}
-
-		local _, n
-		for _, n in ipairs(path) do
-			if context.path[_] ~= n then
-				c.inreq = false
-				break
-			end
-		end
-
-		c.inreq = c.inreq and (context.path[#path + 1] == last)
-
-		parent.nodes[last] = c
-		context.treecache[name] = c
-	end
-
-	return c
-end]]--
-
--- Subdispatchers
-
-function _find_eligible_node(root, prefix, deep, types, descend)
-	local children = _ordered_children(root)
-
-	if not root.leaf and deep ~= nil then
-		local sub_path = { unpack(prefix) }
-
-		if deep == false then
-			deep = nil
-		end
-
-		local _, child
-		for _, child in ipairs(children) do
-			sub_path[#prefix+1] = child.name
-
-			local res_path = _find_eligible_node(child.node, sub_path,
-			                                     deep, types, true)
-
-			if res_path then
-				return res_path
-			end
-		end
-	end
-
-	if descend and
-	   (not types or
-	    (type(root.target) == "table" and
-	     util.contains(types, root.target.type)))
-	then
-		return prefix
-	end
-end
-
-function _find_node(recurse, types)
-	local path = { unpack(context.path) }
-	local name = table.concat(path, ".")
-	local node = context.treecache[name]
-
-	path = _find_eligible_node(node, path, recurse, types)
-
-	if path then
-		dispatch(path)
-	else
-		require "luci.template".render("empty_node_placeholder")
-	end
-end
-
-function _
-()
-	return _find_node(false, nil)
-end
-
-function firstchild()
-	return { type = "firstchild", target = _firstchild }
-end
-
-function _firstnode()
-	return _find_node(true, { "cbi", "form", "template", "arcombine" })
-end
-
-function firstnode()
-	return { type = "firstnode", target = _firstnode }
-end
-
---## Function to compare the current index from alias to the user config ##--
---## If the current index is not present then we assign the first available sub menu as index ##--
-local function get_alias(user,menu,index,path)
-	local conf = "users"
-  	local uci  = uci.cursor()
-	local tbuf = {}
-  	local buf = {}
-	
-	--## update the users activity file ##--
-	if user and user ~= "root" and user ~= "nobody" then 
-		fs.writefile("/home/"..user.."/activity", os.date().."\n")
-	end
-
-  	local ent = uci:get(conf, user, menu.."_subs")
-
-	if ent then
-		for word in string.gmatch(ent, '([^,]+)') do
-			tbuf[#tbuf+1] = word
-		end
-	end
-
-	for i,v in pairs(tbuf) do
-		if path == v then
-			for word in string.gmatch(path, '([^.]+)') do
-				buf[#buf+1] = word
-			end
-			return buf 
-		end
-	end
-	
-	for i,v in pairs(tbuf) do	
-		path = path:gsub(index, "")
-		local snip = v:sub(0,path:len(),-1)
-		if path == snip then
-			path = path..v:sub(path:len()+1,-1)
-			break
-		end
-	end
-
-	for word in string.gmatch(path, '([^.]+)') do
-		buf[#buf+1] = word
-	end
-
-	return buf		
-end
-
---## Function to prep the table from alias so we can process it and compare it with the users config ##-- 
-local function prep_alias(user, ...)
-	local buf = {...}
-	local req = {}
-	if #buf < 2 then return {...} end
- 
-	local index = buf[#buf]
-	local menu = buf[2]
-	local path
-	if index == "overview" then return {...} end
-	for i,v in pairs(buf) do
-		if not path then
-			path = v
-		else
-			path = path .. "." .. v
-		end
-	end
-
-	local req = get_alias(user,menu,index,path)
-
-	if #req == 0 then 
-		return {...}
-	else
-		return req
-	end
-end
-
-function alias(...)
-	local user = get_user()
-	local req
-	--## if user is not root, the index may have changed so ##--
-	--## we need to get the first sub-menu and make it the index ##--
-	if user ~= "root" and user ~= "nobody" then
-		req = prep_alias(user, ...)
-	else
-		req = {...}
-	end
-
-	return function(...)
-		for _, r in ipairs({...}) do
-			req[#req+1] = r
-		end
-
-		dispatch(req)
-	end
-end
-
-function rewrite(n, ...)
-	local req = {...}
-	return function(...)
-		local dispatched = util.clone(context.dispatched)
-
-		for i=1,n do
-			table.remove(dispatched, 1)
-		end
-
-		for i, r in ipairs(req) do
-			table.insert(dispatched, i, r)
-		end
-
-		for _, r in ipairs({...}) do
-			dispatched[#dispatched+1] = r
-		end
-
-		dispatch(dispatched)
-	end
-end
-
-
-local function _call(self, ...)
-	local func = getfenv()[self.name]
-	assert(func ~= nil,
-	       'Cannot resolve function "' .. self.name .. '". Is it misspelled or local?')
-
-	assert(type(func) == "function",
-	       'The symbol "' .. self.name .. '" does not refer to a function but data ' ..
-	       'of type "' .. type(func) .. '".')
-
-	if #self.argv > 0 then
-		return func(unpack(self.argv), ...)
-	else
-		return func(...)
-	end
-end
-
-function call(name, ...)
-	return {type = "call", argv = {...}, name = name, target = _call}
-end
-
-function post_on(params, name, ...)
-	return {
-		type = "call",
-		post = params,
-		argv = { ... },
-		name = name,
-		target = _call
-	}
-end
-
-function post(...)
-	return post_on(true, ...)
-end
-
-
-local _template = function(self, ...)
-	require "luci.template".render(self.view)
-end
-
-function template(name)
-	return {type = "template", view = name, target = _template}
-end
-
-
-local function _cbi(self, ...)
-	local cbi = require "luci.cbi"
-	local tpl = require "luci.template"
-	local http = require "luci.http"
-
-	local config = self.config or {}
-	local maps = cbi.load(self.model, ...)
-
-	local state = nil
-
-	local i, res
-	for i, res in ipairs(maps) do
-		if util.instanceof(res, cbi.SimpleForm) then
-			io.stderr:write("Model %s returns SimpleForm but is dispatched via cbi(),\n"
-				% self.model)
-
-			io.stderr:write("please change %s to use the form() action instead.\n"
-				% table.concat(context.request, "/"))
-		end
-
-		res.flow = config
-		local cstate = res:parse()
-		if cstate and (not state or cstate < state) then
-			state = cstate
-		end
-	end
-
-	local function _resolve_path(path)
-		return type(path) == "table" and build_url(unpack(path)) or path
-	end
-
-	if config.on_valid_to and state and state > 0 and state < 2 then
-		http.redirect(_resolve_path(config.on_valid_to))
-		return
-	end
-
-	if config.on_changed_to and state and state > 1 then
-		http.redirect(_resolve_path(config.on_changed_to))
-		return
-	end
-
-	if config.on_success_to and state and state > 0 then
-		http.redirect(_resolve_path(config.on_success_to))
-		return
-	end
-
-	if config.state_handler then
-		if not config.state_handler(state, maps) then
-			return
-		end
-	end
-
-	http.header("X-CBI-State", state or 0)
-
-	if not config.noheader then
-		tpl.render("cbi/header", {state = state})
-	end
-
-	local redirect
-	local messages
-	local applymap   = false
-	local pageaction = true
-	local parsechain = { }
-
-	for i, res in ipairs(maps) do
-		if res.apply_needed and res.parsechain then
-			local c
-			for _, c in ipairs(res.parsechain) do
-				parsechain[#parsechain+1] = c
-			end
-			applymap = true
-		end
-
-		if res.redirect then
-			redirect = redirect or res.redirect
-		end
-
-		if res.pageaction == false then
-			pageaction = false
-		end
-
-		if res.message then
-			messages = messages or { }
-			messages[#messages+1] = res.message
-		end
-	end
-
-	for i, res in ipairs(maps) do
-		res:render({
-			firstmap   = (i == 1),
-			redirect   = redirect,
-			messages   = messages,
-			pageaction = pageaction,
-			parsechain = parsechain
-		})
-	end
-
-	if not config.nofooter then
-		tpl.render("cbi/footer", {
-			flow          = config,
-			pageaction    = pageaction,
-			redirect      = redirect,
-			state         = state,
-			autoapply     = config.autoapply,
-			trigger_apply = applymap
-		})
-	end
-end
-
-function cbi(model, config)
-	return {
-		type = "cbi",
-		post = { ["cbi.submit"] = true },
-		config = config,
-		model = model,
-		target = _cbi
-	}
-end
-
-
-local function _arcombine(self, ...)
-	local argv = {...}
-	local target = #argv > 0 and self.targets[2] or self.targets[1]
-	setfenv(target.target, self.env)
-	target:target(unpack(argv))
-end
-
-function arcombine(trg1, trg2)
-	return {type = "arcombine", env = getfenv(), target = _arcombine, targets = {trg1, trg2}}
-end
-
-
-local function _form(self, ...)
-	local cbi = require "luci.cbi"
-	local tpl = require "luci.template"
-	local http = require "luci.http"
-
-	local maps = luci.cbi.load(self.model, ...)
-	local state = nil
-
-	local i, res
-	for i, res in ipairs(maps) do
-		local cstate = res:parse()
-		if cstate and (not state or cstate < state) then
-			state = cstate
-		end
-	end
-
-	http.header("X-CBI-State", state or 0)
-	tpl.render("header")
-	for i, res in ipairs(maps) do
-		res:render()
-	end
-	tpl.render("footer")
-end
-
-function form(model)
-	return {
-		type = "cbi",
-		post = { ["cbi.submit"] = true },
-		model = model,
-		target = _form
-	}
-end
-
-translate = i18n.translate
-
--- This function does not actually translate the given argument but
--- is used by build/i18n-scan.pl to find translatable entries.
-function _(text)
-	return text
-end
-
--- get the current user anyway we can 
--- if no user if found return "nobody"
-function get_user()
-	local fs = require "nixio.fs"
-	local http = require "luci.http"
-	local util = require "luci.util"
-	local sess = luci.http.getcookie("sysauth")
-	local sdat = (util.ubus("session", "get", { ubus_rpc_session = sess }) or { }).values
-	local user
-
-	if sdat then 
-		user = sdat.username
-		return(user)
-	elseif http.formvalue("username") then
-		user = http.formvalue("username")
-		return(user)
-	elseif http.getenv("HTTP_AUTH_USER") then
-		user = http.getenv("HTTP_AUTH_USER")
-		return(user)
-	else
-		user = "nobody"
-		return(user)
-	end
-end
-
---## Function to create a file contianing all available menus and sub-menus ##--
-local function create_menu(menu,title,path,order)
-	local tbuf = {}
-	local dir = "/tmp/menu/"
-	local fname = dir .. menu
-
-   	-- check if file and dir exists, if not create them
-   	if not fs.access(dir) then 
-     		fs.mkdir(dir)
-   	end
-   	if not fs.access(fname) then
-     		file = assert(io.open(fname, "w+"))
-       		file:write(title.."-"..path.."-"..tostring(order).."\n")
-     		file:close()
-   	else
-   		-- check if file contains val, if not add the val to the file
-      		file = assert(io.open(fname, "r"))
-     		for line in file:lines() do
-       			tbuf[#tbuf+1] = line
-     		end
-     		file:close()
-     		if not util.contains(tbuf, title.."-"..path.."-"..tostring(order)) then
-       			file = assert(io.open(fname, "a+"))
-       			file:write(title.."-"..path.."-"..tostring(order).."\n")
-       			file:close()
-     		end
-    	end
-
-  	return
-end
-
---## Function to format menus and sub-menus for writing to file ##--
-local function parse_path(path,title,order)
-	local tbuf = {}
-	local dbuf = {}
-
-	for word in string.gmatch(path, '([^.]+)') do
-		if (#tbuf < 3) then
-			tbuf[#tbuf+1] = word
-		end
-	end
-
-	for i,v in pairs(tbuf) do
-		if tbuf[2] ~= "filebrowser" and tbuf[2] ~= "logout" and tbuf[2] ~= "servicectl" and tbuf[2] ~= "uci" then
-            		if tbuf[2] and tbuf[3] then
-				dbuf[tbuf[2]] = tbuf[3]
-            		end
-		end
-	end
-
-	for i,v in pairs(dbuf) do
-          create_menu(i,title,path,order)
-	end
-	return
-end
-
---## Function to create the menu tree from the context.treecahce ##--
-function create_menu_tree()
-	--util.dumptable(context.treecache,2)
-	local cnt = 0
-	for k,v in pairs(context.treecache) do
-		if not k:match("admin.uci.%a+") and v.title then
-			parse_path(k, v.title, v.order)
-			cnt = cnt + 1
-		end
-		if cnt >= 50 then return end
-	end
-	
-	return
-end
-
---## Function to sort menus best we can ... the order hierarchy needs work ##--
-local function sort_menus(menu)
-	local menus = {}
-	local tmenus = {}
-	local title,path,order
-	local menu_keys = {}
-
-	for i,v in pairs(menu) do
-		menus[i]= {}
-		menu_keys = {}
-		for key,val in pairs(v) do
-			local tbuf={}
-			for word in val:gmatch("[^-]+") do
-				tbuf[#tbuf+1] = word
-			end
-
-			local tbuf2 = {}
-			for word in tbuf[2]:gmatch("[^.]+") do
-				tbuf2[#tbuf2+1] = word
-			end
-			if #tbuf2 > 3 then tbuf[3] = #tbuf2 + 11 end
-			title = tbuf[1]
-			path = tbuf[2]
-			order = tonumber(tbuf[3]) or 99
-			--print(title,order,path)
-			if util.contains(menu_keys, order) then order = order +1 end
-			menu_keys[#menu_keys+1]= order
-			tmenus[order] = {title.."-"..path}
-			
-		end
-		table.sort(menu_keys, function(a,b) return a<b end)
-		for _,v in pairs(menu_keys) do
-				--print(v)
-				for a,b in pairs(tmenus[v]) do
-					menus[i][#menus[i]+1]=b
-				end
-			end
-		
-	end
-	return menus
-end
-
---## Function used by add_users and edit_users to display available menus ##--
-function load_menu()
-	create_menu_tree()
-	local menu = {}
-	if fs.stat("/tmp/menu") then
-		for i,v in fs.dir("/tmp/menu") do
-			menu[i]={}
-			local file = assert(io.open("/tmp/menu/"..i, "r"))
-			
-			for line in file:lines() do
-				if line ~= nil then
-					if not util.contains(menu[i],line) then
-						menu[i][#menu[i]+1] = line
-					end
-				end
-			end
-			file:close()
-		end
-	end
-	local menus = sort_menus(menu)
-	return menus
-end
+new_user()
