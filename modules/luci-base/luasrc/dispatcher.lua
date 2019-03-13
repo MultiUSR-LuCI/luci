@@ -685,7 +685,7 @@ function lookup(...)
 	end
 end
 
---## Function to chk if the user has acces to the menu entry ##--
+-- Function to chk if the user has acces to the menu entry 
 local function chk(name)
   	local mu = require ("luci.users")
 	local user = get_user()
@@ -704,7 +704,7 @@ function _create_node(path)
         local name = table.concat(path, ".")
 	local c
 
-	--## Here is where the magic happens :) ##--
+	-- Here is where the magic happens 
 	if #path == 0 then
 		return context.tree
 	elseif name and chk(name) then
@@ -766,9 +766,9 @@ function _create_node(path)
 	end
 
 	return c
-end
+end]]--
 
--- Subdispatchers --
+-- Subdispatchers
 
 function _find_eligible_node(root, prefix, deep, types, descend)
 	local children = _ordered_children(root)
@@ -926,18 +926,6 @@ function alias(...)
 	end
 end
 
---[[
-function alias(...)
-	local req = {...}
-	return function(...)
-		for _, r in ipairs({...}) do
-			req[#req+1] = r
-		end
-
-		dispatch(req)
-	end
-end
-]]--
 function rewrite(n, ...)
 	local req = {...}
 	return function(...)
