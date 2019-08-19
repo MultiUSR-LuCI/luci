@@ -459,7 +459,7 @@ msgid "Members assigned"
 msgstr "Назначенные узлы"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interface.lua:230
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:245
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:244
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/member.lua:33
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/memberconfig.lua:25
 msgid "Metric"
@@ -686,7 +686,7 @@ msgstr "Задача"
 msgid "There are currently %d of %d supported interfaces configured"
 msgstr "В настоящее время настроено %d из %d поддерживаемых интерфейсов."
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:246
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:245
 msgid ""
 "This displays the metric assigned to this interface in /etc/config/network"
 msgstr ""
@@ -824,15 +824,15 @@ msgstr ""
 msgid "Yes"
 msgstr "Да"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:243
-msgid "always"
-msgstr "всегда"
-
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:80
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:29
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/ruleconfig.lua:73
 msgid "blackhole (drop)"
 msgstr "blackhole (drop)"
+
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:241
+msgid "connected (mwan3)"
+msgstr ""
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:82
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:30
@@ -840,23 +840,35 @@ msgstr "blackhole (drop)"
 msgid "default (use main routing table)"
 msgstr "по умолчанию (использовать основную таблицу маршрутизации)"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:241
-msgid "ifdown"
-msgstr "ifdown"
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:242
+msgid "disconnected (mwan3)"
+msgstr ""
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:240
-msgid "ifup"
-msgstr "ifup"
+msgid "ifdown (netifd)"
+msgstr ""
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:242
-msgid "never"
-msgstr "никогда"
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:239
+msgid "ifup (netifd)"
+msgstr ""
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:84
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:28
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/ruleconfig.lua:72
 msgid "unreachable (reject)"
 msgstr "недоступен (отклонить)"
+
+#~ msgid "always"
+#~ msgstr "всегда"
+
+#~ msgid "ifdown"
+#~ msgstr "ifdown"
+
+#~ msgid "ifup"
+#~ msgstr "ifup"
+
+#~ msgid "never"
+#~ msgstr "никогда"
 
 #~ msgid "Local source interface"
 #~ msgstr "Локальный исходящий интефейс"

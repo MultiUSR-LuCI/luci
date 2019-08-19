@@ -22,52 +22,24 @@ function index()
 		s_output	= _("Output plugins"),
 		s_general	= _("General plugins"),
 		s_network	= _("Network plugins"),
-
-		apcups		= _("APC UPS"),
-		conntrack	= _("Conntrack"),
-		contextswitch	= _("Context Switches"),
-		cpu			= _("Processor"),
-		cpufreq		= _("CPU Frequency"),
-		csv			= _("CSV Output"),
-		curl		= _("cUrl"),
-		df			= _("Disk Space Usage"),
-		disk		= _("Disk Usage"),
-		dns			= _("DNS"),
-		email		= _("Email"),
-		entropy		= _("Entropy"),
-		exec		= _("Exec"),
-		interface	= _("Interfaces"),
-		iptables	= _("Firewall"),
-		irq			= _("Interrupts"),
-		iwinfo		= _("Wireless"),
-		load		= _("System Load"),
-		memory		= _("Memory"),
-		netlink		= _("Netlink"),
-		network		= _("Network"),
-		nut			= _("UPS"),
-		olsrd		= _("OLSRd"),
-		openvpn		= _("OpenVPN"),
-		ping		= _("Ping"),
-		processes	= _("Processes"),
-		rrdtool		= _("RRDTool"),
-		sensors     = _("Sensors"),
-		splash_leases = _("Splash Leases"),
-		tcpconns	= _("TCP Connections"),
-		thermal	= 	_("Thermal"),
-		unixsock	= _("UnixSock"),
-		uptime		= _("Uptime")
 	}
 
 	-- our collectd menu
 	local collectd_menu = {
-		output  = { "csv", "network", "rrdtool", "unixsock" },
-		general = { "apcups", "contextswitch", "cpu", "cpufreq", "df",
-			"disk", "email", "entropy", "exec", "irq", "load", "memory",
-			"nut", "processes", "sensors", "thermal", "uptime" },
-		network = { "conntrack", "curl", "dns", "interface", "iptables",
-			"netlink", "olsrd", "openvpn", "ping",
-			"splash_leases", "tcpconns", "iwinfo" }
+		output  = { },
+		general = { },
+		network = { }
 	}
+
+	local plugin_dir = "/usr/lib/lua/luci/statistics/plugins/"
+	for filename in nixio.fs.dir(plugin_dir) do
+		local plugin_fun = loadfile(plugin_dir .. filename)
+		setfenv(plugin_fun, { _ = luci.i18n.translate })
+		local plugin = plugin_fun()
+		local name = filename:gsub("%.lua", "")
+		table.insert(collectd_menu[plugin.category], name)
+		labels[name] = plugin.label
+	end
 
 	-- create toplevel menu nodes
 	local st = entry({"admin", "statistics"}, template("admin_statistics/index"), _("Statistics"), 80)
@@ -115,11 +87,15 @@ function index()
 		-- get plugin instances
 		local instances = tree:plugin_instances( plugin )
 
-		-- plugin menu entry
-		entry(
-			{ "admin", "statistics", "graph", plugin },
-			call("statistics_render"), labels[plugin], idx
-		).query = { timespan = span , host = host }
+		-- load plugin menu entry from the description
+		local plugin_name = "luci.statistics.rrdtool.definitions." .. plugin
+		local stat, def = pcall( require, plugin_name )
+		if stat and def and type(def.item) == "function" then
+			entry(
+				{ "admin", "statistics", "graph", plugin },
+				call("statistics_render"), def.item(), idx
+			).query = { timespan = span , host = host }
+		end
 
 		-- if more then one instance is found then generate submenu
 		if #instances > 1 then
@@ -170,12 +146,12 @@ function statistics_render()
 	local images = { }
 
 	-- find requested plugin and instance
-    for i, p in ipairs( luci.dispatcher.context.path ) do
-        if luci.dispatcher.context.path[i] == "graph" then
-            plugin    = luci.dispatcher.context.path[i+1]
-            instances = { luci.dispatcher.context.path[i+2] }
-        end
-    end
+	for i, p in ipairs( luci.dispatcher.context.path ) do
+		if luci.dispatcher.context.path[i] == "graph" then
+			plugin    = luci.dispatcher.context.path[i+1]
+			instances = { luci.dispatcher.context.path[i+2] }
+		end
+	end
 
 	-- no instance requested, find all instances
 	if #instances == 0 then
@@ -188,7 +164,6 @@ function statistics_render()
 		instances[1] = ""
 		is_index = true
 	end
-
 
 	-- render graphs
 	for i, inst in luci.util.vspairs( instances ) do

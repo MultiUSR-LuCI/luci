@@ -76,9 +76,11 @@ function options_client(s, tab)
 	o.datatype = "port"
 end
 
-function options_server(s, tab)
+function options_server(s, opts)
 	local o
 	local optfunc
+	local tab = opts and opts.tab or nil
+	local row = opts and opts.row or false
 
 	if tab == nil then
 		optfunc = function(...) return s:option(...) end
@@ -96,13 +98,17 @@ function options_server(s, tab)
 	for _, m in ipairs(methods) do
 		o:value(m)
 	end
-	o = optfunc(Value, "key", translate("Key (base64 encoding)"))
-	o.datatype = "base64"
-	o.password = true
-	o.size = 12
 	o = optfunc(Value, "password", translate("Password"))
 	o.password = true
 	o.size = 12
+	if not row then
+		o = optfunc(Value, "key", translate("Key (base64)"))
+		o.datatype = "base64"
+		o.password = true
+		o.size = 12
+		optfunc(Value, "plugin", translate("Plugin"))
+		optfunc(Value, "plugin_opts", translate("Plugin Options"))
+	end
 end
 
 function options_common(s, tab)
@@ -211,6 +217,8 @@ names_options_server = {
 	"method",
 	"key",
 	"password",
+	"plugin",
+	"plugin_opts",
 }
 
 names_options_client = {

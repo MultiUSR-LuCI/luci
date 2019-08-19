@@ -55,6 +55,8 @@
 	line-height: normal;
 	display: table-cell;
 	padding: .5em;
+	word-break: break-all;
+	word-wrap: break-word;
 	text-align: center;
 	vertical-align: middle;
 }
@@ -136,6 +138,7 @@
 
 .col-10 {
 	flex: 10 10 300px !important;
+	width: 60%;
 }
 
 /* dom 元素 */
@@ -157,26 +160,6 @@ h6 {
 	color: inherit;
 }
 
-html {
-	-webkit-text-size-adjust: 100%;
-	-ms-text-size-adjust: 100%;
-	height: 100%;
-}
-
-body {
-	font-size: .8rem;
-	background-color: #eee;
-	height: auto;
-}
-
-html,
-body {
-	font-family: "Microsoft Yahei", "WenQuanYi Micro Hei", "sans-serif", "Helvetica Neue", "Helvetica",
-		"Hiragino Sans GB";
-	margin: 0;
-	padding: 0;
-	background-color: #EBF1F6;
-}
 
 header {
 	display: none;
@@ -185,7 +168,7 @@ header {
 }
 
 header .container {
-    padding: 0 0.5rem;
+	padding: 0 0.5rem;
 }
 
 select {
@@ -593,11 +576,6 @@ footer > a {
 }
 
 /* Main interface right 右主界面 */
-.main-right {
-	width: 84%;
-	height: 100%;
-}
-
 .main-right .container .alert,
 .main-right .container .alert-message {
 	margin-top: 1rem;
@@ -613,7 +591,7 @@ footer > a {
 .main-right .container .alert-message h4 {
 	margin-top: 1rem;
 	background: url(./no-pwd.png) no-repeat left 1px / 28px;
-    padding: 7px 0 0 32px;
+	padding: 7px 0 0 32px;
 }
 
 .main-right .container .alert-message .btn {
@@ -807,7 +785,7 @@ form[method="post"] + form[method="post"],
 .cbi-button[name="zero"],
 .cbi-button[name="restart"],
 .cbi-button[onclick="hide_empty(this)"] {
-    border: 1px solid;
+	border: 1px solid;
 }
 
 /* dark blue */
@@ -838,10 +816,10 @@ form[method="post"] + form[method="post"],
 .cbi-button[value="Submit"],
 .cbi-button[value$="Apply"],
 .cbi-button[onclick="addKey(event)"] {
-    font-weight: normal;
-    color: #fff;
-    border: 1px solid #468ea4;
-    background-color: #468ea4;
+	font-weight: normal;
+	color: #fff;
+	border: 1px solid #468ea4;
+	background-color: #468ea4;
 }
 
 /* red */
@@ -855,10 +833,10 @@ form[method="post"] + form[method="post"],
 .cbi-button[onclick="reboot(this)"],
 .cbi-button-neutral[value="Restart"] {
 	padding: 5px .8rem;
-    font-weight: 100;
-    color: #f24b7c;
-    background-color: transparent;
-    border: 1px solid #f24b7c;
+	font-weight: 100;
+	color: #f24b7c;
+	background-color: transparent;
+	border: 1px solid #f24b7c;
 }
 
 /* yellow */
@@ -881,10 +859,10 @@ form[method="post"] + form[method="post"],
 .cbi-button[name="backup"],
 .cbi-button[value="Upload"],
 .cbi-button[value="Save mtdblock"] {
-    font-weight: normal;
-    color: #468ea4;
-    border: thin solid #468ea4;
-    background-color: transparent;
+	font-weight: normal;
+	color: #468ea4;
+	border: thin solid #468ea4;
+	background-color: transparent;
 }
 
 .cbi-page-actions .cbi-button-link:first-child {
@@ -911,40 +889,40 @@ form[method="post"] + form[method="post"],
 }
 
 .tabs > li {
-    margin-right: .8rem;
-    padding: .5rem 4px;
-    position: relative;
-    display: inline-block;
-    text-align: center;
+	margin-right: .8rem;
+	padding: 6px 10px;
+	position: relative;
+	display: inline-block;
+	text-align: center;
 }
 
 .tabs > li a {
-    color: #468EA4;
+	color: #468EA4;
 	font-size: 14px;
 	text-decoration: none;
 	position: relative;
 	z-index: 1;
 }
 .tabs > li::after {
-    content: '';
-    background-color: #cccccc82;
-    position: absolute;
-    width: 0;
-    height: 100%;
-    bottom: 0;
-    border-radius: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+	content: '';
+	background-color: #cccccc82;
+	position: absolute;
+	width: 0;
+	height: 100%;
+	bottom: 0;
+	border-radius: 20px;
+	left: 50%;
+	transform: translateX(-50%);
 }
 
 .tabs > li:hover::after {
-    transition: width .35s;
-    width: calc(100% + 4px);
+	transition: width .35s;
+	width: calc(100% + 4px);
 }
 
 .tabs > li.active::after {
-    width: calc(100% + 4px);
-    background-color: #468ea473;
+	width: calc(100% + 4px);
+	background-color: #468ea473;
 }
 
 .cbi-tabmenu > li {
@@ -1189,17 +1167,17 @@ form[method="post"] + form[method="post"],
 }
 
 .cbi-dynlist > .item::after {
-    position: absolute;
-    right: -2em;
-    bottom: 0;
-    display: inline-flex;
-    min-height: 17px;
-    padding: 0 6px;
-    content: "\00D7";
-    pointer-events: auto;
-    color: #f24b7c;
-    border: thin solid #f24b7c;
-    background-color: transparent;
+	position: absolute;
+	right: -2em;
+	bottom: 0;
+	display: inline-flex;
+	min-height: 17px;
+	padding: 0 6px;
+	content: "\00D7";
+	pointer-events: auto;
+	color: #f24b7c;
+	border: thin solid #f24b7c;
+	background-color: transparent;
 }
 
 .cbi-dynlist > .item > span {
@@ -1480,6 +1458,11 @@ body.modal-overlay-active {
 	height: 100vh;
 }
 
+#modal_overlay .alert-message.warning {
+	background-color:  #fff !important;
+	margin-bottom: 10px;
+}
+
 body.modal-overlay-active #modal_overlay {
 	right: 0;
 	left: 0;
@@ -1652,6 +1635,7 @@ td > .ifacebadge,
 .network-status-table .ifacebox-body > span {
 	flex: 10 10 auto;
 	font-size: 12px;
+	height: 100%;
 }
 
 .network-status-table .ifacebox-body > div {
@@ -2036,9 +2020,9 @@ input[name="nslookup"] {
 }
 
 /* fix Main Login 登录界面*/
-body.login {
-	background: #fff url(./loginBG.png) no-repeat center center;
-	height: 100%;
+.login .main-right {
+	background: url(./loginBG.png) no-repeat center center / cover;
+	text-align: center;
 }
 
 .login header {
@@ -2054,12 +2038,6 @@ body.login {
 	display: none;
 }
 
-.login > .main > .main-right {
-	width: 100%;
-	text-align: center;
-	background-color: transparent;
-}
-
 .login .brand {
 	display: block;
 	color: #fff;
@@ -2073,6 +2051,7 @@ body.login {
 
 .login > .main #maincontent {
 	margin-top: 5rem;
+	padding-bottom: 20px;
 	display: inline-block;
 	background-color: transparent;
 	width: 39%;
@@ -2096,9 +2075,9 @@ body.login {
 
 .login .alert-message > h4 {
 	padding: 7px 0 0 32px;
-    font-size: 18px;
-    background: url(./no-pwd.png) no-repeat left 0 / 28px;
-    display: inline-block;
+	font-size: 18px;
+	background: url(./no-pwd.png) no-repeat left 0 / 28px;
+	display: inline-block;
 }
 
 .login .alert-message > p {
@@ -2158,36 +2137,32 @@ body.login {
 }
 
 .login > .main .cbi-value > .cbi-value-field {
-    display: block;
-    position: relative;
+	display: block;
+	position: relative;
 }
 
-.login > .main .cbi-value-last > .cbi-value-field > div {
-	content: '';
-    height: 24px;
-    width: 24px;
-    position: absolute;
-    top: 9px;
-    right: 12px;
-    background: no-repeat center center / cover;
+.login > .main .cbi-value-last .cbi-value-field > div {
+	height: 24px;
+	width: 24px;
+	display: inline-block;
+	background: url(./op-eye.png) no-repeat center center / cover;
+	position: absolute;
+	top: 8px;
+	right: 12px;
 }
 
-.login > .main .cbi-value-last > .cbi-value-field .eye {
-	background-image: url(./op-eye.png);
+.login > .main .cbi-value-last .cbi-value-field.op-eye > div {
+	background-image: url(./cl-eye.png);
 }
 
-.login > .main .cbi-value-last > .cbi-value-field .op-eye {
-    background-image: url(./cl-eye.png);
-}
-
-.login > .main .cbi-input-text {
+.login > .main .cbi-value .cbi-input-text {
+	margin: 0 0 16px;
+	padding-left: 36px;
 	width: 100%;
 	height: 42px;
-	background: #fff no-repeat 12px center;
+	border: 1px solid #556270;
 	border-radius: 20px;
-	padding-left: 42px;
-	font-size: 18px;
-	border: none;
+	background: #fff no-repeat 11px center / 19px;
 }
 
 .login > .main .cbi-value .cbi-input-text {
@@ -2206,14 +2181,18 @@ body.login {
 
 .login .cbi-page-actions .cbi-button-apply,
 .login .cbi-button-apply {
-    border: 1px solid #f24b7c;
-    background-color: #f24b7c;
+	border: 1px solid #f24b7c;
+	background-color: #f24b7c;
 }
 
 .login .cbi-button[value="Reset"] {
-    color: #fff;
-    border: 1px solid #9a4569;
-    background-color: #9a4569;
+	color: #fff;
+	border: 1px solid #9a4569;
+	background-color: #9a4569;
+}
+
+.login footer {
+	padding: 0;
 }
 
 @media screen and (min-height: 585px) {
@@ -2275,10 +2254,48 @@ body.login {
 
 .logged-in .main-right {
 	float: right;
+	width: 84%;
+	height: 100%;
 }
 
 .logged-in .main-right .container {
 	margin: 5rem 1rem 1rem;
+}
+
+/* rosy file server */
+.login-info.node-main-login{
+	background-color: #ebf1f6;
+}
+
+.login-info.node-main-login header .container,
+.login-info.node-main-login .main {
+	width: 1170px;
+}
+
+.login-info.node-main-login .main {
+	padding: 0 15px;
+}
+
+.login-info.node-main-login header {
+	display: block;
+}
+
+.login-info.node-main-login header .container {
+	margin: 1rem auto 0;
+	height: 3rem;
+	background-color: #fff;
+	border: 1px solid #ddd;
+	border-radius: 50px;
+	line-height: 44px;
+}
+
+.login-info.node-main-login .label.logout {
+	background-color: #f24b7c;
+}
+
+.login-info.node-main-login .label.logout a {
+	color: #fff;
+	text-decoration: none;
 }
 
 /* node main login */
@@ -2463,9 +2480,12 @@ body.login {
 	flex-basis: 12%;
 }
 
-#cbi-firewall-zone .table,
-#cbi-network-switch_vlan .table {
+#cbi-firewall-zone .table {
 	display: table;
+}
+
+#cbi-network-switch_vlan #vlan_table {
+	overflow-x: auto;
 }
 
 #cbi-firewall-zone .td.cbi-section-actions {
@@ -2580,6 +2600,9 @@ body.login {
 }
 
 @media screen and (max-width: 1400px) {
+	.logged-in header {
+		width: calc(100% - 230px - 2rem);
+	}
 	.logged-in .main-right {
 		width: calc(100% - 230px);
 	}
@@ -2617,10 +2640,6 @@ body.login {
 		font-size: .7rem;
 	}
 
-	#modal_overlay {
-		top: 3.5rem;
-	}
-
 	[data-page="admin-network-firewall-forwards"] .table:not(.cbi-section-table) {
 		display: block;
 	}
@@ -2637,27 +2656,23 @@ body.login {
 }
 
 @media screen and (max-width: 992px) {
+	.login-info.node-main-login header .container,
+	.login-info.node-main-login .main {
+		width: 970px;
+	}
+}
+
+@media screen and (max-width: 992px) {
+	.login .main-right {
+		background: #354057;
+	}
+
 	.login > .main #maincontent {
-		margin-top: 2rem;
 		width: 90%;
 	}
 
-	.login-info .main {
-		width: 100%;
-	}
-
-	.login > .main .container {
-		width: 100%;
-	}
-
 	.logged-in header {
-		z-index: 2000;
-		top: 0;
-		left: 0;
-		width: 100%;
-		border-radius: 0;
-		border: none;
-		border-bottom: 1px solid #ddd;
+		width: calc(100% - 2rem);
 	}
 
 	.showSide,
@@ -2670,16 +2685,15 @@ body.login {
 		display: none;
 		z-index: 1000;
 		position: fixed;
-		top: 3rem;
+		top: 0;
 		bottom: 0;
 		left: 0;
 		right: 0;
 		border-radius: 0;
 		background-color: rgba(0, 0, 0, .3);
-		height: calc(100% - 3rem);
 	}
 
-	.main-left .nav-container {
+	.logged-in .main-left .nav-container {
 		top: 0;
 		left: 0;
 		width: 50%;
@@ -2688,16 +2702,12 @@ body.login {
 		height: 100%;
 	}
 
-	.main-left .nav-container .navbar-container {
+	.logged-in .main-left .nav-container .navbar-container {
 		overflow-y: scroll;
 	}
 
 	.logged-in .main-right {
 		width: 100%;
-	}
-
-	body.login {
-		background: #354057;
 	}
 
 	[data-page^="command-cfg"] header .container > .brand {
@@ -2713,6 +2723,10 @@ body.login {
 		display: inline-block;
 		cursor: pointer;
 		width: 30px;
+	}
+
+	.login-info.node-main-login header .showSide {
+		display: none;
 	}
 
 	.showSide::before {
@@ -2885,31 +2899,31 @@ body.login {
 
 	/* The scroll bar of the navigation bar is compatible with each browser. */
 	/* Google */
-	.main-left .navbar-container::-webkit-scrollbar {
+	.logged-in .main-left .navbar-container::-webkit-scrollbar {
 		width: 6px;
 		background: transparent;
 	}
 
-	.main-left .navbar-container::-webkit-scrollbar-button {
+	.logged-in .main-left .navbar-container::-webkit-scrollbar-button {
 		display: none;
 	}
 
-	.main-left .navbar-container::-webkit-scrollbar-thumb {
+	.logged-in .main-left .navbar-container::-webkit-scrollbar-thumb {
 		background-color: #ffffff61;
 		border-radius: 10px;
 	}
 
-	.main-left .navbar-container::-webkit-scrollbar-thumb {
+	.logged-in .main-left .navbar-container::-webkit-scrollbar-thumb {
 		background-color: #839dd67a;
 		border-radius: 10px;
 	}
 
-	.main-left .navbar-container:hover::-webkit-scrollbar-thumb {
+	.logged-in .main-left .navbar-container:hover::-webkit-scrollbar-thumb {
 		background-color: #839dd67a;
 	}
 
 	/* IE */
-	.main-left .navbar-container {
+	.logged-in .main-left .navbar-container {
 		scrollbar-track-color: transparent;
 		scrollbar-face-color: #839dd67a;
 		scrollbar-arrow-color: transparent;
@@ -2920,8 +2934,24 @@ body.login {
 		scrollbar-base-color: transparent;
 	}
 
-	.main-left .navbar-container:hover {
+	.logged-in .main-left .navbar-container:hover {
 		scrollbar-face-color: #839dd67a;
+	}
+
+	.login-info.node-main-login header .container,
+	.login-info.node-main-login .main {
+		width: 750px;
+	}
+}
+
+@media screen and (max-width: 768px) {
+	.login-info.node-main-login header {
+		padding: 0 15px;
+	}
+
+	.login-info.node-main-login header .container,
+	.login-info.node-main-login .main {
+		width: 100%;
 	}
 }
 
@@ -2939,10 +2969,6 @@ body.login {
 	.cbi-section {
 		margin: 1rem 0 0 0;
 		padding: 1rem;
-	}
-
-	.tabs {
-		margin: 0 -1rem;
 	}
 
 	.main-left .nav-container {

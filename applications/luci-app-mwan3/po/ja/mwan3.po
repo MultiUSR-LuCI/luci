@@ -7,7 +7,7 @@ msgstr ""
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 2.2.1\n"
+"X-Generator: Poedit 2.2.3\n"
 "Last-Translator: INAGAKI Hiroshi <musashino.open@gmail.com>\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 "Language: ja\n"
@@ -463,7 +463,7 @@ msgid "Members assigned"
 msgstr "アサイン済みメンバー"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interface.lua:230
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:245
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:244
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/member.lua:33
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/memberconfig.lua:25
 msgid "Metric"
@@ -479,7 +479,7 @@ msgstr "最小パケットロス [%]"
 
 #: applications/luci-app-mwan3/luasrc/controller/mwan3.lua:190
 msgid "Missing both IP rules for interface %s"
-msgstr ""
+msgstr "インターフェース %s にどちらの IP ルールもありません。"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/ruleconfig.lua:57
 msgid ""
@@ -687,7 +687,7 @@ msgstr "タスク"
 msgid "There are currently %d of %d supported interfaces configured"
 msgstr "現在、%d 個中 %d 個のサポートされたインターフェースが設定済みです。"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:246
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:245
 msgid ""
 "This displays the metric assigned to this interface in /etc/config/network"
 msgstr ""
@@ -838,15 +838,15 @@ msgstr ""
 msgid "Yes"
 msgstr "はい"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:243
-msgid "always"
-msgstr "always"
-
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:80
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:29
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/ruleconfig.lua:73
 msgid "blackhole (drop)"
 msgstr "blackhole (drop)"
+
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:241
+msgid "connected (mwan3)"
+msgstr "接続時 (mwan3)"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:82
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:30
@@ -854,17 +854,17 @@ msgstr "blackhole (drop)"
 msgid "default (use main routing table)"
 msgstr "デフォルト（メインのルーティング テーブルを使用）"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:241
-msgid "ifdown"
-msgstr "ifdown"
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:242
+msgid "disconnected (mwan3)"
+msgstr "切断時 (mwan3)"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:240
-msgid "ifup"
-msgstr "ifup"
+msgid "ifdown (netifd)"
+msgstr "ifdown (netifd)"
 
-#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:242
-msgid "never"
-msgstr "never"
+#: applications/luci-app-mwan3/luasrc/model/cbi/mwan/interfaceconfig.lua:239
+msgid "ifup (netifd)"
+msgstr "ifup (netifd)"
 
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policy.lua:84
 #: applications/luci-app-mwan3/luasrc/model/cbi/mwan/policyconfig.lua:28

@@ -622,6 +622,12 @@ function del_network(self, n)
 					_uci:delete("wireless", s['.name'], "network")
 				end
 			end)
+
+		local ok, fw = pcall(require, "luci.model.firewall")
+		if ok then
+			fw.init()
+			fw:del_network(n)
+		end
 	end
 	return r
 end
@@ -1157,6 +1163,10 @@ end
 
 function protocol.is_dynamic(self)
 	return (self:_ubus("dynamic") == true)
+end
+
+function protocol.is_auto(self)
+	return (self:_get("auto") ~= "0")
 end
 
 function protocol.is_alias(self)

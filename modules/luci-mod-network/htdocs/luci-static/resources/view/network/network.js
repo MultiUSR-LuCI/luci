@@ -1,7 +1,7 @@
 function iface_reconnect(id) {
 	L.halt();
 	L.dom.content(document.getElementById(id + '-ifc-description'), E('em', _('Interface is reconnecting...')));
-	L.post(L.url('admin/network/iface_reconnect', id), L.run);
+	L.post(L.url('admin/network/iface_reconnect', id), null, L.run);
 }
 
 function iface_delete(ev) {
@@ -102,6 +102,7 @@ L.poll(5, L.url('admin/network/iface_status', networks.join(',')), null,
 						_('IPv6'),     ifc.ip6addrs ? ifc.ip6addrs[8] : null,
 						_('IPv6'),     ifc.ip6addrs ? ifc.ip6addrs[9] : null,
 						_('IPv6-PD'),  ifc.ip6prefix,
+						_('Information'), ifc.is_auto ? null : _('Not started on boot'),
 						_('Error'),    ifc.errors ? ifc.errors[0] : null,
 						_('Error'),    ifc.errors ? ifc.errors[1] : null,
 						_('Error'),    ifc.errors ? ifc.errors[2] : null,

@@ -125,11 +125,21 @@ e5:depends("ban_backup", 1)
 e5.rmempty = true
 
 e6 = e:option(Value, "ban_maxqueue", translate("Max. Download Queue"),
-	translate("Size of the download queue to handle downloads &amp; IPset processing in parallel (default '8'). ")
-	.. translate("For further performance improvements you can raise this value, e.g. '16' or '32' should be safe."))
-e6.default = 8
+	translate("Size of the download queue to handle downloads &amp; IPset processing in parallel (default '4'). ")
+	.. translate("For further performance improvements you can raise this value, e.g. '8' or '16' should be safe."))
+e6.default = 4
 e6.datatype = "range(1,32)"
 e6.rmempty = false
+
+e7 = e:option(Flag, "ban_autoblacklist", translate("Local Save Blacklist Addons"),
+  translate("Blacklist auto addons are stored temporary in the IPSet and saved permanently in the local blacklist. Disable this option to prevent the local save."))
+e7.default = e7.enabled
+e7.rmempty = true
+
+e8 = e:option(Flag, "ban_autowhitelist", translate("Local Save Whitelist Addons"),
+  translate("Whitelist auto addons are stored temporary in the IPSet and saved permanently in the local whitelist. Disable this option to prevent the local save."))
+e8.default = e8.enabled
+e8.rmempty = true
 
 -- Optional Extra Options
 

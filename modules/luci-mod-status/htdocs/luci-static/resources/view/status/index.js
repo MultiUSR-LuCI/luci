@@ -1,13 +1,15 @@
-function progressbar(q, v, m)
+function progressbar(query, value, max, byte)
 {
-	var pg = document.querySelector(q),
-	    vn = parseInt(v) || 0,
-	    mn = parseInt(m) || 100,
+	var pg = document.querySelector(query),
+	    vn = parseInt(value) || 0,
+	    mn = parseInt(max) || 100,
+	    fv = byte ? String.format('%1024.2mB', value) : value,
+	    fm = byte ? String.format('%1024.2mB', max) : max,
 	    pc = Math.floor((100 / mn) * vn);
 
 	if (pg) {
 		pg.firstElementChild.style.width = pc + '%';
-		pg.setAttribute('title', '%s / %s (%d%%)'.format(v, m, pc));
+		pg.setAttribute('title', '%s / %s (%d%%)'.format(fv, fm, pc));
 	}
 }
 
@@ -50,8 +52,16 @@ L.poll(5, L.location(), { status: 1 },
 				_('Device'), ifc ? (ifc.name || ifc.ifname || '-') : '-',
 				_('MAC-Address'), (ifc && ifc.ether) ? ifc.mac : null)) ],
 				_('Protocol'), ifc.i18n || E('em', _('Not connected')),
-				_('Address'), (ifc.ipaddr) ? ifc.ipaddr : '0.0.0.0',
-				_('Netmask'), (ifc.netmask && ifc.netmask != ifc.ipaddr) ? ifc.netmask : '255.255.255.255',
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[0] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[1] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[2] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[3] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[4] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[5] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[6] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[7] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[8] : null,
+				_('Address'), (ifc.ipaddrs) ? ifc.ipaddrs[9] : null,
 				_('Gateway'), (ifc.gwaddr) ? ifc.gwaddr : '0.0.0.0',
 				_('DNS') + ' 1', (ifc.dns) ? ifc.dns[0] : null,
 				_('DNS') + ' 2', (ifc.dns) ? ifc.dns[1] : null,
@@ -76,7 +86,16 @@ L.poll(5, L.location(), { status: 1 },
 					_('MAC-Address'), (ifc6 && ifc6.ether) ? ifc6.mac : null)) ],
 				_('Protocol'), ifc6.i18n ? (ifc6.i18n + (ifc6.proto === 'dhcp' && ifc6.ip6prefix ? '-PD' : '')) : E('em', _('Not connected')),
 				_('Prefix Delegated'), ifc6.ip6prefix,
-				_('Address'), (ifc6.ip6prefix) ? (ifc6.ip6addr || null) : (ifc6.ip6addr || '::'),
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[0] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[1] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[2] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[3] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[4] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[5] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[6] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[7] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[8] : null,
+				_('Address'), (ifc6.ip6addrs) ? ifc6.ip6addrs[9] : null,
 				_('Gateway'), (ifc6.gw6addr) ? ifc6.gw6addr : '::',
 				_('DNS') + ' 1', (ifc6.dns) ? ifc6.dns[0] : null,
 				_('DNS') + ' 2', (ifc6.dns) ? ifc6.dns[1] : null,
@@ -189,27 +208,32 @@ L.poll(5, L.location(), { status: 1 },
 			);
 
 		progressbar('#memtotal',
-			((info.memory.free + info.memory.buffered) / 1024) + ' ' + _('kB'),
-			(info.memory.total / 1024) + ' ' + _('kB'));
+			info.memory.free + info.memory.buffered,
+			info.memory.total,
+			true);
 
 		progressbar('#memfree',
-			(info.memory.free / 1024) + ' ' + _('kB'),
-			(info.memory.total / 1024) + ' ' + _('kB'));
+			info.memory.free,
+			info.memory.total,
+			true);
 
 		progressbar('#membuff',
-			(info.memory.buffered / 1024) + ' ' + _('kB'),
-			(info.memory.total / 1024) + ' ' + _('kB'));
+			info.memory.buffered,
+			info.memory.total,
+			true);
 
 		progressbar('#swaptotal',
-			(info.swap.free / 1024) + ' ' + _('kB'),
-			(info.swap.total / 1024) + ' ' + _('kB'));
+			info.swap.free,
+			info.swap.total,
+			true);
 
 		progressbar('#swapfree',
-			(info.swap.free / 1024) + ' ' + _('kB'),
-			(info.swap.total / 1024) + ' ' + _('kB'));
+			info.swap.free,
+			info.swap.total,
+			true);
 
 		progressbar('#conns',
-			info.conncount, info.connmax);
+			info.conncount, info.connmax, false);
 
 	}
 );
