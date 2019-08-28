@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI Multi User Support
-LUCI_DEPENDS:=+luci-mod-admin-full
+LUCI_DEPENDS:=+luci-mod-admin-full +libuci-lua
 
 include ../../luci.mk
 
